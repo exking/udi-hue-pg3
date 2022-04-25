@@ -1,9 +1,9 @@
 """ Node classes used by the Hue Node Server. """
 
 from converters import RGB_2_xy, color_xy, bri2st, kel2mired
-import polyinterface
+import udi_interface
 
-LOGGER = polyinterface.LOGGER
+LOGGER = udi_interface.LOGGER
 
 """ Hue Default transition time is 400ms """
 DEF_TRANSTIME = 400
@@ -15,11 +15,12 @@ FADE_TRANSTIME = 4000
 HUE_EFFECTS = ['none', 'colorloop']
 HUE_ALERTS = ['none', 'select', 'lselect']
 
-class HueBase(polyinterface.Node):
+class HueBase(udi_interface.Node):
     """ Base class for lights and groups """
 
-    def __init__(self, controller, primary, address, name, element_id, element, hub_idx):
-        super().__init__(controller, primary, address, name)
+    def __init__(self, polyglot, primary, address, name, element_id, element, hub_idx):
+        super().__init__(polyglot, primary, address, name)
+        self.controller = self.poly.get_node(self.primary)
         self.name = name
         self.address = address
         self.element_id = int(element_id)
@@ -232,8 +233,8 @@ class HueBase(polyinterface.Node):
 class HueDimmLight(HueBase):
     """ Node representing Hue Dimmable Light """
 
-    def __init__(self, controller, primary, address, name, element_id, device, hub_idx):
-        super().__init__(controller, primary, address, name, element_id, device, hub_idx)
+    def __init__(self, polyglot, primary, address, name, element_id, device, hub_idx):
+        super().__init__(polyglot, primary, address, name, element_id, device, hub_idx)
         self.reachable = None
 
     def start(self):
@@ -423,8 +424,8 @@ class HueEColorLight(HueColorLight):
 class HueGroup(HueBase):
     """ Node representing a group of Hue Lights """
 
-    def __init__(self, controller, primary, address, name, element_id, device, hub_idx):
-        super().__init__(controller, primary, address, name, element_id, device, hub_idx)
+    def __init__(self, polyglot, primary, address, name, element_id, device, hub_idx):
+        super().__init__(polyglot, primary, address, name, element_id, device, hub_idx)
         self.devcount = None
         self.all_on = None
 

@@ -19,7 +19,7 @@ import os
 import platform
 import sys
 import socket
-import polyinterface as polyglot
+import udi_interface as polyglot
 if sys.version_info[0] > 2:
     PY3K = True
 else:

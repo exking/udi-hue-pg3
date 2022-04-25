@@ -6,7 +6,7 @@ try:
     from httplib import BadStatusLine  # Python 2.x
 except ImportError:
     from http.client import BadStatusLine  # Python 3.x
-import polyinterface
+import udi_interface
 from node_types import HueDimmLight, HueWhiteLight, HueColorLight, HueEColorLight, HueGroup
 import sys
 import socket
@@ -14,13 +14,15 @@ import phue
 import logging
 import json
 
-LOGGER = polyinterface.LOGGER
+LOGGER = udi_interface.LOGGER
 
-class Control(polyinterface.Controller):
+class Control(udi_interface.Node):
     """ Phillips Hue Node Server """
     
-    def __init__(self, poly):
-        super().__init__(poly)
+    def __init__(self, polyglot, primary, address, name):
+        super().__init__(polyglot, primary, address, name)
+        self.parameters = Custom(polyglot, 'customparams')
+        self.cust_data = Custom(polyglot, 'customdata')
         self.name = 'Hue Bridge'
         self.address = 'huebridge'
         self.primary = self.address
@@ -31,14 +33,27 @@ class Control(polyinterface.Controller):
         self.scenes = {}
         self.scene_lookup = []
         self.ignore_second_on = False
+        self.poly.subscribe(polyglot.START, self.start, address)
+        self.poly.subscribe(polyglot.CUSTOMPARAMS, self.parameter_handler)
+        self.poly.subscribe(polyglot.CUSTOMDATA, self.data_handler)
+        self.poly.subscribe(polyglot.POLL, self.poll)
+        self.poly.subscribe(polyglot.STOP, self.stop)
+        self.poly.ready()
+        self.poly.addNode(self)
         LOGGER.info('Started Hue Protocol')
                         
     def start(self):
+        polyglot.update_profile()
+        self.poly.setCustomParamDocs()
+
+    def parameter_handler(self, params):
+        self.parameters.load(params)
+        self.poly.Notices.clear()
         """ Initial node setup. """
         # define nodes for settings
-        if 'debug' not in self.polyConfig['customParams']:
+        if not self.parameters['debug']:
             LOGGER.setLevel(logging.INFO)
-        if 'ignore_second_on' in self.polyConfig['customParams']:
+        if self.parameters['ignore_second_on']:
             LOGGER.debug('DON will be ignored if already on')
             self.ignore_second_on = True
         self.connect()
@@ -47,9 +62,12 @@ class Control(polyinterface.Controller):
     def stop(self):
         LOGGER.info('Hue NodeServer is stopping')
 
-    def shortPoll(self):
+    def poll(self, polltype):
         for idx in self.hub.keys():
             self.updateNodes(idx)
+
+    def data_handler(self, data):
+         self.cust_data.load(data)
 
     def connect(self):
         custom_data_ip = False
@@ -61,35 +79,31 @@ class Control(polyinterface.Controller):
         """ Connect to Phillips Hue Hub """
         # pylint: disable=broad-except
         # get hub settings
-        if 'customData' in self.polyConfig:
-            if 'bridge_ip' in self.polyConfig['customData']:
-                bridge_ip = self.polyConfig['customData']['bridge_ip']
-                custom_data_ip = True
-                LOGGER.info('Bridge IP found in the Database: {}'.format(bridge_ip))
-            if 'bridge_user' in self.polyConfig['customData']:
-                bridge_user = self.polyConfig['customData']['bridge_user']
-                custom_data_user = True
-                LOGGER.info('Bridge Username found in the Database.')
-            if 'bridges' in self.polyConfig['customData']:
-                for idx, bridge in self.polyConfig['customData']['bridges'].items():
-                    bridges[bridge['ip']] = bridge['user']
-                LOGGER.info('Database has {} bridge(s) configuration'.format(len(bridges)))
-            else:
-                LOGGER.info('Saved bridges information is not found')
-                if custom_data_ip and custom_data_user:
-                    LOGGER.info('Old custom data found in the DB, converting')
-                    data = {'0': {'ip': bridge_ip, 'user': bridge_user }}
-                    bridges[bridge_ip] = bridge_user
-                    self.saveCustomData({'bridges': data })
-
+        if self.cust_data['bridge_ip']:
+            bridge_ip = self.cust_data['bridge_ip']
+            custom_data_ip = True
+            LOGGER.info('Bridge IP found in the Database: {}'.format(bridge_ip))
+        if self.cust_data['bridge_user']:
+            bridge_user = self.cust_data['bridge_user']
+            custom_data_user = True
+            LOGGER.info('Bridge Username found in the Database.')
+        if self.cust_data['bridges']:
+            for idx, bridge in self.cust_data['bridges'].items():
+                bridges[bridge['ip']] = bridge['user']
+            LOGGER.info('Database has {} bridge(s) configuration'.format(len(bridges)))
         else:
-            LOGGER.info('Custom Data is not found in the DB')
+            LOGGER.info('Saved bridges information is not found')
+            if custom_data_ip and custom_data_user:
+                LOGGER.info('Old custom data found in the DB, converting')
+                data = {'0': {'ip': bridge_ip, 'user': bridge_user }}
+                bridges[bridge_ip] = bridge_user
+                self.cust_data['bridges'] = data
 
-        if 'bridges' in self.polyConfig['customParams']:
+        if self.parameters['bridges']:
             try:
-                hub_list = json.loads(self.polyConfig['customParams']['bridges'])
+                hub_list = json.loads(self.parameters['bridges'])
             except Exception as ex:
-                LOGGER.error('Failed to read bridges variable {} {}'.format(self.polyConfig['customParams']['bridges'], ex))
+                LOGGER.error('Failed to read bridges variable {} {}'.format(self.parameters['bridges'], ex))
                 return
             LOGGER.info('Reading bridges configuration: {}'.format(hub_list))
         else:
@@ -142,7 +156,7 @@ class Control(polyinterface.Controller):
                 idx += 1
             if len(data) > 0:
                 LOGGER.info('Saving usernames to DB')
-                self.saveCustomData({'bridges': data })
+                self.cust_data['bridges'] = data
 
     def discover(self, command=None):
         self.scene_lookup = []
@@ -168,19 +182,19 @@ class Control(polyinterface.Controller):
             address = id_2_addr(data['uniqueid'])
             name = data['name']
             
-            if not address in self.nodes:
+            if not self.poly.getNode(address):
                 if data['type'] == "Extended color light":
                     LOGGER.info('Hub {} Found Extended Color Bulb: {}({})'.format(hub_idx, name, address))
-                    self.addNode(HueEColorLight(self, self.address, address, name, lamp_id, data, hub_idx))
+                    self.poly.addNode(HueEColorLight(self.poly, self.address, address, name, lamp_id, data, hub_idx))
                 elif data['type'] == "Color light":
                     LOGGER.info('Hub {} Found Color Bulb: {}({})'.format(hub_idx, name, address))
-                    self.addNode(HueColorLight(self, self.address, address, name, lamp_id, data, hub_idx))
+                    self.poly.addNode(HueColorLight(self.poly, self.address, address, name, lamp_id, data, hub_idx))
                 elif data['type'] == "Color temperature light":
                     LOGGER.info('Hub {} Found White Ambiance Bulb: {}({})'.format(hub_idx, name, address))
-                    self.addNode(HueWhiteLight(self, self.address, address, name, lamp_id, data, hub_idx))
+                    self.poly.addNode(HueWhiteLight(self.poly, self.address, address, name, lamp_id, data, hub_idx))
                 elif data['type'] == "Dimmable light":
                     LOGGER.info('Hub {} Found Dimmable Bulb: {}({})'.format(hub_idx, name, address))
-                    self.addNode(HueDimmLight(self, self.address, address, name, lamp_id, data, hub_idx))
+                    self.poly.addNode(HueDimmLight(self.poly, self.address, address, name, lamp_id, data, hub_idx))
                 else:
                     LOGGER.info('Hub {} Found Unsupported {} Bulb: {}({})'.format(hub_idx, data['type'], name, address))
 
@@ -208,9 +222,9 @@ class Control(polyinterface.Controller):
                 name = data['name']
             
             if 'lights' in data and len(data['lights']) > 0:
-                if not address in self.nodes:
+                if not self.poly.getNode(address):
                     LOGGER.info("Hub {} Found {} {} with {} light(s)".format(hub_idx, data['type'], name, len(data['lights'])))
-                    self.addNode(HueGroup(self, self.address, address, name, group_id, data, hub_idx))
+                    self.poly.addNode(HueGroup(self.poly, self.address, address, name, group_id, data, hub_idx))
                     if self.scenes[hub_idx]:
                         for scene_id, scene_data in self.scenes[hub_idx].items():
                             if 'group' in scene_data:
@@ -219,9 +233,9 @@ class Control(polyinterface.Controller):
                                     LOGGER.info(f"Hub {hub_idx} {data['type']} {name} {scene_data['type']} {scene_idx}:{scene_id}:{scene_data['name']}")
                                     scene_idx += 1
             else:
-                if address in self.nodes:
+                if self.poly.getNode(address):
                     LOGGER.info("Hub {} {} {} does not have any lights in it, removing a node".format(hub_idx, data['type'], name))
-                    self.delNode(address)
+                    self.poly.delNode(address)
         
         LOGGER.info('Hub {} Discovery complete'.format(hub_idx))
         self.discovery = False
@@ -233,8 +247,8 @@ class Control(polyinterface.Controller):
         self.lights[hub_idx] = self._get_lights(hub_idx)
         self.groups[hub_idx] = self._get_groups(hub_idx)
         try:
-            for node in self.nodes:
-                self.nodes[node].updateInfo()
+            for node in self.poly.getNodes().values():
+                node.updateInfo()
         except Exception as ex:
             LOGGER.error(f'Exception during {hub_idx} nodes update: {ex}')
             return False
@@ -314,9 +328,9 @@ if __name__ == "__main__":
         Grab the "HUE" variable from the .polyglot/.env file. This is where
         we tell it what profile number this NodeServer is.
         """
-        poly = polyinterface.Interface("Hue")
+        poly = udi_interface.Interface("Hue")
         poly.start()
-        hue = Control(poly)
-        hue.runForever()
+        Controller(poly, 'huebridge', 'huebridge', 'Hue')
+        poly.runForever()
     except (KeyboardInterrupt, SystemExit):
         sys.exit(0)
