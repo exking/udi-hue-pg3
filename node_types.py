@@ -20,7 +20,7 @@ class HueBase(udi_interface.Node):
 
     def __init__(self, polyglot, primary, address, name, element_id, element, hub_idx):
         super().__init__(polyglot, primary, address, name)
-        self.controller = self.poly.get_node(self.primary)
+        self.controller = self.poly.getNode(self.primary)
         self.name = name
         self.address = address
         self.element_id = int(element_id)

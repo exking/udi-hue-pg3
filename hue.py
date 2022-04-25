@@ -15,6 +15,7 @@ import logging
 import json
 
 LOGGER = udi_interface.LOGGER
+Custom = udi_interface.Custom
 
 class Control(udi_interface.Node):
     """ Phillips Hue Node Server """
@@ -23,9 +24,7 @@ class Control(udi_interface.Node):
         super().__init__(polyglot, primary, address, name)
         self.parameters = Custom(polyglot, 'customparams')
         self.cust_data = Custom(polyglot, 'customdata')
-        self.name = 'Hue Bridge'
-        self.address = 'huebridge'
-        self.primary = self.address
+        self.notices = Custom(polyglot, 'notices')
         self.discovery = False
         self.hub = {}
         self.lights = {}
@@ -43,8 +42,8 @@ class Control(udi_interface.Node):
         LOGGER.info('Started Hue Protocol')
                         
     def start(self):
-        polyglot.update_profile()
-        self.poly.setCustomParamDocs()
+        self.poly.updateProfile()
+        self.poly.Notices.clear()
 
     def parameter_handler(self, params):
         self.parameters.load(params)
@@ -129,7 +128,7 @@ class Control(udi_interface.Node):
                 hub_conn = phue.Bridge( hub_ip, hub_user )
             except phue.PhueRegistrationException:
                 LOGGER.error('IP Address OK. Node Server not registered.')
-                self.addNotice({'myNotice': 'Please press the button on the Hue Bridge(s) and restart the node server within 30 seconds'})
+                self.notices['myNotice'] = 'Please press the button on the Hue Bridge(s) and restart the node server within 30 seconds'
                 continue
             except Exception:
                 LOGGER.error('Cannot find Hue Bridge')
@@ -142,7 +141,6 @@ class Control(udi_interface.Node):
 
                 if self.lights[hub_ip]:
                     LOGGER.info('Connection OK')
-                    self.removeNoticesAll()
                     hub_user = self.hub[hub_ip].username
                     bridges[hub_ip] = hub_user
                 else:
@@ -330,7 +328,7 @@ if __name__ == "__main__":
         """
         poly = udi_interface.Interface("Hue")
         poly.start()
-        Controller(poly, 'huebridge', 'huebridge', 'Hue')
+        Control(poly, 'huebridge', 'huebridge', 'Hue')
         poly.runForever()
     except (KeyboardInterrupt, SystemExit):
         sys.exit(0)
