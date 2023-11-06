@@ -1,6 +1,6 @@
 {
     "name": "Hue",
-    "docs": "https://developers.meethue.com/documentation/",
+    "docs": "https://github.com/exking/udi-hue-pg3/blob/master/README.md",
     "type": "python3",
     "executable": "hue.py",
     "install": "install.sh",
