@@ -1,6 +1,7 @@
 """ Node classes used by the Hue Node Server. """
 
-from converters import RGB_2_xy, color_xy, bri2st, kel2mired
+from converters import RGB_2_xy, color_xy, kel2mired
+import json
 import udi_interface
 
 LOGGER = udi_interface.LOGGER
@@ -18,12 +19,12 @@ HUE_ALERTS = ['none', 'select', 'lselect']
 class HueBase(udi_interface.Node):
     """ Base class for lights and groups """
 
-    def __init__(self, polyglot, primary, address, name, element_id, element, hub_idx):
+    def __init__(self, polyglot, primary, address, name, light_id, element, hub_idx):
         super().__init__(polyglot, primary, address, name)
         self.controller = self.poly.getNode(self.primary)
         self.name = name
         self.address = address
-        self.element_id = int(element_id)
+        self.light_id = light_id
         self.data = element
         self.on = None
         self.st = None
@@ -38,6 +39,8 @@ class HueBase(udi_interface.Node):
         self.color_y = None
         self.effect = None
         self.hub_idx = hub_idx
+        self.zigbee_connectivity_id = None
+        self.parent_device_id = None
 
     """ Basic On/Off and brightness controls """
     def setBaseCtl(self, command):
@@ -54,7 +57,7 @@ class HueBase(udi_interface.Node):
             val = command.get('value')
             if val:
                 self.brightness = self._validateBri(int(val))
-                hue_command['bri'] = self.brightness
+                hue_command = {'dimming': {'brightness': self.brightness } }
                 self.setDriver('GV5', self.brightness)
             elif cmd == 'DON' and self.on and self.controller.ignore_second_on:
                 ''' Ignore DON command if bulb is On already '''
@@ -62,9 +65,9 @@ class HueBase(udi_interface.Node):
             elif cmd == 'DFON' or self.on:
                 ''' Go to full brightness on Fast On or if already On '''
                 self.brightness = 254
-                hue_command['bri'] = self.brightness
+                hue_command = {'dimming': {'brightness': self.brightness } }
                 self.setDriver('GV5', self.brightness)
-            self.st = bri2st(self.brightness)
+            self.st = self.brightness
             """ setting self.on to False to ensure that _send_command will add it """
             self.on = False
             """ if this is a Hue Group class """
@@ -76,7 +79,7 @@ class HueBase(udi_interface.Node):
             if hasattr(self,'all_on'):
                 self.all_on = False
             self.st = 0
-            hue_command = { 'on': self.on }
+            hue_command = { 'on': { 'on': self.on } }
             result = self._send_command(hue_command, trans, False)
             if trans != DEF_TRANSTIME:
                 """
@@ -103,7 +106,7 @@ class HueBase(udi_interface.Node):
                 """ FDSTOP """
                 increment = 0
             self.brightness += increment
-            self.st = bri2st(self.brightness)
+            self.st = self.brightness
             hue_command = { 'bri_inc': increment }
             self.setDriver('GV5', self.brightness)
             result = self._send_command(hue_command, trans)
@@ -118,7 +121,7 @@ class HueBase(udi_interface.Node):
         self.brightness = self._validateBri(int(command.get('value')))
         self.setDriver('GV5', self.brightness)
         self.setDriver('ST', self.st)
-        hue_command = { 'bri': self.brightness }
+        hue_command = { 'dimming': {'brightness': self.brightness }}
         return self._send_command(hue_command)
 
     def setTransition(self, command):
@@ -133,17 +136,17 @@ class HueBase(udi_interface.Node):
         return self._send_command(hue_command)
 
     def _validateBri(self, brightness):
-        if brightness > 254:
-            brightness = 254
-        elif brightness < 1:
-            brightness = 1
-        self.st = bri2st(brightness)
+        if brightness > 100:
+            brightness = 100
+        elif brightness < 0:
+            brightness = 0
+        self.st = brightness
         return brightness
 
     def setCt(self, command):
         self.ct = int(command.get('value'))
         self.setDriver('CLITEMP', self.ct)
-        hue_command = { 'ct': kel2mired(self.ct) }
+        hue_command = {'color_temperature': { 'mirek': kel2mired(self.ct) }}
         return self._send_command(hue_command)
 
     def setCtBri(self, command):
@@ -153,7 +156,7 @@ class HueBase(udi_interface.Node):
         self.setDriver('CLITEMP', self.ct)
         self.setDriver('ST', self.st)
         self.setDriver('GV5', self.brightness)
-        hue_command = { 'ct': kel2mired(self.ct), 'bri': self.brightness }
+        hue_command = { 'color_temperature': {'mirek': kel2mired(self.ct)}, 'dimming': {'brightness': self.brightness }}
         return self._send_command(hue_command)
 
     def setColorRGB(self, command):
@@ -164,7 +167,7 @@ class HueBase(udi_interface.Node):
         transtime = int(query.get('D.uom42'))
         self.brightness = self._validateBri(int(query.get('BR.uom100')))
         (self.color_x, self.color_y) = RGB_2_xy(color_r, color_g, color_b)
-        hue_command = {'xy': [self.color_x, self.color_y], 'bri': self.brightness}
+        hue_command = {'color': {'xy': {'x': self.color_x, 'y': self.color_y}}, 'dimming': {'brightness': self.brightness}}
         self.setDriver('GV1', self.color_x)
         self.setDriver('GV2', self.color_y)
         self.setDriver('GV5', self.brightness)
@@ -177,7 +180,7 @@ class HueBase(udi_interface.Node):
         self.color_y = float(query.get('Y.uom56'))
         transtime = int(query.get('D.uom42'))
         self.brightness = self._validateBri(int(query.get('BR.uom100')))
-        hue_command = {'xy': [self.color_x, self.color_y], 'bri': self.brightness}
+        hue_command = {'color': {'xy': {'x': self.color_x, 'y': self.color_y}}, 'dimming': {'brightness': self.brightness}}
         self.setDriver('GV1', self.color_x)
         self.setDriver('GV2', self.color_y)            
         self.setDriver('GV5', self.brightness)
@@ -187,35 +190,10 @@ class HueBase(udi_interface.Node):
     def setColor(self, command):
         c_id = int(command.get('value')) - 1
         (self.color_x, self.color_y) = color_xy(c_id)
-        hue_command = {'xy': [self.color_x, self.color_y]}
+        hue_command = {'color': {'xy': {'x': self.color_x, 'y': self.color_y}}}
         self.setDriver('GV1', self.color_x)
         self.setDriver('GV2', self.color_y)
         return self._send_command(hue_command)
-
-    def setHue(self, command):
-        self.hue = int(command.get('value'))
-        self.setDriver('GV3', self.hue)
-        hue_command = { 'hue': self.hue }
-        return self._send_command(hue_command)
-
-    def setSat(self, command):
-        self.saturation = int(command.get('value'))
-        self.setDriver('GV4', self.saturation)
-        hue_command = { 'sat': self.saturation }
-        return self._send_command(hue_command)
-
-    def setColorHSB(self, command):
-        query = command.get('query')
-        self.hue = int(query.get('H.uom56'))
-        self.saturation = int(query.get('S.uom100'))
-        self.brightness = self._validateBri(int(query.get('BR.uom100')))
-        transtime = int(query.get('D.uom42'))
-        hue_command = {'hue': self.hue, 'sat': self.saturation, 'bri': self.brightness}
-        self.setDriver('GV3', self.hue)
-        self.setDriver('GV4', self.saturation)
-        self.setDriver('GV5', self.brightness)
-        self.setDriver('ST', self.st)
-        return self._send_command(hue_command, transtime)
 
     def setEffect(self, command):
         val = int(command.get('value')) - 1
@@ -233,9 +211,10 @@ class HueBase(udi_interface.Node):
 class HueDimmLight(HueBase):
     """ Node representing Hue Dimmable Light """
 
-    def __init__(self, polyglot, primary, address, name, element_id, device, hub_idx):
-        super().__init__(polyglot, primary, address, name, element_id, device, hub_idx)
+    def __init__(self, polyglot, primary, address, name, light_id, device, hub_idx):
+        super().__init__(polyglot, primary, address, name, light_id, device, hub_idx)
         self.reachable = None
+        self.updateInfo()
 
     def start(self):
         try:
@@ -245,17 +224,35 @@ class HueDimmLight(HueBase):
         self.updateInfo()
         
     def query(self, command=None):
-        self.data = self.controller.hub[self.hub_idx].get_light(self.element_id)
+        self.data = self.controller.hub[self.hub_idx].get_light(self.id)
         if self.data is None:
             return False
         self._updateInfo()
         self.reportDrivers()
         
     def updateInfo(self):
+        self.data = None
+        zbc = None
         if self.controller.lights[self.hub_idx] is None:
             return False
         try:
-            self.data = self.controller.lights[self.hub_idx][str(self.element_id)]
+            for data in self.controller.lights[self.hub_idx]:
+                if data['id'] == self.light_id:
+                    self.data = data
+                    break
+            if self.data is None:
+                LOGGER.info(f"Can't find light in bridge output, removing the node {self.light_id}")
+                self.poly.delNode(self.address)
+                return False
+            for parent_dev in self.controller.devices[self.hub_idx]:
+                for dev_service in parent_dev['services']:
+                    if dev_service['rtype'] == 'zigbee_connectivity':
+                        zbc = dev_service['rid']
+                    if dev_service['rid'] == self.light_id and dev_service['rtype'] == 'light':
+                        self.parent_device_id = parent_dev['id']
+                        self.zigbee_connectivity_id = zbc
+                        break
+                        
         except KeyError:
             LOGGER.error('Node {} no longer exists'.format(self.address))
             self.controller.delNode(self.address)
@@ -264,49 +261,46 @@ class HueDimmLight(HueBase):
 
     def _updateInfo(self):
         if self.on is not None:
-            if self.on != self.data['state']['on']:
-                if self.data['state']['on']:
+            if self.on != self.data['on']['on']:
+                if self.data['on']['on']:
                     self.reportCmd('DON')
                 else:
                     self.reportCmd('DOF')
-        self.on = self.data['state']['on']
-        self.brightness = self.data['state']['bri']
-        self.st = bri2st(self.data['state']['bri'])
-        self.reachable = self.data['state']['reachable']
-        self.alert = self.data['state']['alert']
+        self.on = self.data['on']['on']
+        self.brightness = self.data['dimming']['brightness']
+        self.st = self.data['dimming']['brightness']
 
         self.setDriver('GV5', self.brightness)
-
-        if self.reachable:
-            self.setDriver('GV6', 1)
-        else:
-            self.setDriver('GV6', 0)
 
         if self.on:
             self.setDriver('ST', self.st)
         else:
             self.setDriver('ST', 0)
-
         self.setDriver('RR', self.transitiontime)
+        for zbc in self.controller.zigbee_connectivity[self.hub_idx]:
+            if zbc['id'] == self.zigbee_connectivity_id:
+                if zbc['status'] == 'connected':
+                    self.reachable = 1
+                else:
+                    self.reachable = 0
+        self.setDriver('GV6', self.reachable)
         return True
 
     def _send_command(self, command, transtime=None, checkOn=True):
         """ generic method to send command to light """
         if transtime is None:
             transtime = self.transitiontime
-        if transtime != DEF_TRANSTIME:
-            command['transitiontime'] = int(round(transtime / 100))
+#        if transtime != DEF_TRANSTIME:
+#            command['transitiontime'] = int(round(transtime / 100))
         if checkOn and self.on is False:
-            command['on'] = True
+            command = {'on': {'on': True} }
             self.on = True
             if self.saved_brightness:
                 """ Attempt to restore saved brightness """
-                if 'bri' not in command:
-                    command['bri'] = self.saved_brightness
+                if 'dimming' not in command:
+                    command['dimming'] = {'brightness': self.saved_brightness}
                 self.saved_brightness = None
-        responses = self.controller.hub[self.hub_idx].set_light(self.element_id, command)
-        return all(
-            [list(resp.keys())[0] == 'success' for resp in responses[0]])
+        return self.controller.hub[self.hub_idx].set_light(self.light_id, command)
 
     drivers = [ {'driver': 'ST', 'value': 0, 'uom': 51},
                 {'driver': 'GV5', 'value': 0, 'uom': 100},
@@ -329,7 +323,10 @@ class HueWhiteLight(HueDimmLight):
 
     def _updateInfo(self):
         super()._updateInfo()
-        self.ct = kel2mired(self.data['state']['ct'])
+        if self.data['color_temperature']['mirek_valid']:
+            self.ct = kel2mired(self.data['color_temperature']['mirek'])
+        else:
+            self.ct = 0
         self.setDriver('CLITEMP', self.ct)
         return True
 
@@ -355,15 +352,15 @@ class HueColorLight(HueDimmLight):
 
     def _updateInfo(self):
         super()._updateInfo()
-        self.effect = self.data['state']['effect']
-        (self.color_x, self.color_y) = [round(float(val), 4)
-                              for val in self.data['state'].get('xy',[0.0,0.0])]
-        self.hue = self.data['state']['hue']
-        self.saturation = self.data['state']['sat']
+        #self.effect = self.data['state']['effect']
+        self.color_x = round(float(self.data['color']['xy']['x']), 4)
+        self.color_y = round(float(self.data['color']['xy']['y']), 4)
+        #self.hue = self.data['state']['hue']
+        #self.saturation = self.data['state']['sat']
         self.setDriver('GV1', self.color_x)
         self.setDriver('GV2', self.color_y)
-        self.setDriver('GV3', self.hue)
-        self.setDriver('GV4', self.saturation)
+        #self.setDriver('GV3', self.hue)
+        #self.setDriver('GV4', self.saturation)
         return True
 
     drivers = [ {'driver': 'ST', 'value': 0, 'uom': 51},
@@ -381,7 +378,7 @@ class HueColorLight(HueDimmLight):
                    'DFON': HueBase.setBaseCtl, 'DFOF': HueBase.setBaseCtl, 'BRT': HueBase.setBaseCtl,
                    'DIM': HueBase.setBaseCtl, 'FDUP': HueBase.setBaseCtl, 'FDDOWN': HueBase.setBaseCtl,
                    'FDSTOP': HueBase.setBaseCtl, 'SET_BRI': HueBase.setBrightness, 'RR': HueBase.setTransition,
-                   'SET_COLOR': HueBase.setColor, 'SET_HUE': HueBase.setHue, 'SET_SAT': HueBase.setSat, 'SET_HSB': HueBase.setColorHSB,
+                   'SET_COLOR': HueBase.setColor,
                    'SET_COLOR_RGB': HueBase.setColorRGB, 'SET_COLOR_XY': HueBase.setColorXY, 'SET_ALERT': HueBase.setAlert,
                    'SET_EFFECT': HueBase.setEffect
                }
@@ -393,9 +390,48 @@ class HueEColorLight(HueColorLight):
 
     def _updateInfo(self):
         super()._updateInfo()
-        self.ct = kel2mired(self.data['state']['ct'])
-        self.setDriver('CLITEMP', self.ct)
+        if self.data['color_temperature']['mirek']:
+            self.ct = kel2mired(self.data['color_temperature']['mirek'])
+            self.setDriver('CLITEMP', self.ct)
         return True
+
+    def process_event(self, event):
+        LOGGER.debug(f'{self.name} processing event {json.dumps(event)}')
+        if 'on' in event:
+            if event['on']['on']:
+                self.reportCmd('DON')
+                self.st = self.brightness
+                self.setDriver('ST', self.st)
+            else:
+                self.reportCmd('DOF')
+                self.setDriver('ST', 0)
+            self.on = event['on']['on']
+        if 'dimming' in event:
+            self.brightness = self.data['dimming']['brightness']
+            self.st = self.data['dimming']['brightness']
+            self.setDriver('GV5', self.brightness)
+            if self.on:
+                self.setDriver('ST', self.st)
+            else:
+                self.setDriver('ST', 0)
+        if 'color' in event:
+            self.color_x = round(float(event['color']['xy']['x']), 4)
+            self.color_y = round(float(event['color']['xy']['y']), 4)
+            self.setDriver('GV1', self.color_x)
+            self.setDriver('GV2', self.color_y)
+        if 'color_temperature' in event:
+            if event['color_temperature']['mirek_valid']:
+                self.ct = kel2mired(event['color_temperature']['mirek'])
+                self.setDriver('CLITEMP', self.ct)
+
+    def process_connectivity(self, event):
+        LOGGER.debug(f'{self.name} processing event {json.dumps(event)}')
+        if event['status'] == 'connected':
+            self.reachable = 1
+        else:
+            self.reachable = 0
+        self.setDriver('GV6', self.reachable)
+
 
     drivers = [ {'driver': 'ST', 'value': 0, 'uom': 51},
                 {'driver': 'GV1', 'value': 0, 'uom': 56},
@@ -413,8 +449,8 @@ class HueEColorLight(HueColorLight):
                    'DFON': HueBase.setBaseCtl, 'DFOF': HueBase.setBaseCtl, 'BRT': HueBase.setBaseCtl,
                    'DIM': HueBase.setBaseCtl, 'FDUP': HueBase.setBaseCtl, 'FDDOWN': HueBase.setBaseCtl,
                    'FDSTOP': HueBase.setBaseCtl, 'SET_BRI': HueBase.setBrightness, 'RR': HueBase.setTransition,
-                   'SET_COLOR': HueBase.setColor, 'SET_HUE': HueBase.setHue, 'SET_SAT': HueBase.setSat,
-                   'CLITEMP': HueBase.setCt, 'SET_HSB': HueBase.setColorHSB, 'SET_COLOR_RGB': HueBase.setColorRGB,
+                   'SET_COLOR': HueBase.setColor,
+                   'CLITEMP': HueBase.setCt, 'SET_COLOR_RGB': HueBase.setColorRGB,
                    'SET_COLOR_XY': HueBase.setColorXY, 'SET_ALERT': HueBase.setAlert, 'SET_EFFECT': HueBase.setEffect,
                    'SET_CTBR': HueBase.setCtBri
                }
@@ -424,8 +460,8 @@ class HueEColorLight(HueColorLight):
 class HueGroup(HueBase):
     """ Node representing a group of Hue Lights """
 
-    def __init__(self, polyglot, primary, address, name, element_id, device, hub_idx):
-        super().__init__(polyglot, primary, address, name, element_id, device, hub_idx)
+    def __init__(self, polyglot, primary, address, name, group_id, device, hub_idx):
+        super().__init__(polyglot, primary, address, name, group_id, device, hub_idx)
         self.devcount = None
         self.all_on = None
 
@@ -437,7 +473,7 @@ class HueGroup(HueBase):
         self.updateInfo()
         
     def query(self, command=None):
-        self.data = self.controller.hub[self.hub_idx].get_group(self.element_id)
+        self.data = self.controller.hub[self.hub_idx].get_group(self.group_id)
         if self.data is None:
             return False
         try:
@@ -450,7 +486,7 @@ class HueGroup(HueBase):
     def updateInfo(self):
         if self.controller.groups[self.hub_idx] is None:
             return False
-        self.data = self.controller.groups[self.hub_idx][str(self.element_id)]
+        self.data = self.controller.groups[self.hub_idx][self.group_id]
         self._updateInfo()
 
     def _updateInfo(self):
@@ -474,7 +510,7 @@ class HueGroup(HueBase):
         self.brightness = self.data['action']['bri']
         self.setDriver('GV5', self.brightness)
 
-        self.st = bri2st(self.data['action']['bri'])
+        self.st = self.data['action']['bri']
         if self.on:
             self.setDriver('ST', self.st)
         else:
@@ -572,9 +608,9 @@ class HueGroup(HueBase):
     def setHueScene(self, command):
         requested_scene_id = int(command.get('value'))
         for hue_scene in self.controller.scene_lookup:
-            if hue_scene['hub'] == self.hub_idx and hue_scene['group'] == self.element_id and hue_scene['idx'] == requested_scene_id:
-                LOGGER.info(f"{self.data['name']} requested scene: {hue_scene['name']} ({requested_scene_id}), hue scene id: {hue_scene['id']}")
-                return self._send_command({"scene": hue_scene['id']})
+            if hue_scene['hub'] == self.hub_idx and hue_scene['group'] == self.group_id and hue_scene['idx'] == requested_scene_id:
+                LOGGER.info(f"{self.data['name']} requested scene: {hue_scene['name']} ({requested_scene_id}), hue scene group_id: {hue_scene['group_id']}")
+                return self._send_command({"scene": hue_scene['group_id']})
         LOGGER.error(f"{self.data['name']} does not seem to have scene index {requested_scene_id}")
         return False
 
@@ -592,7 +628,7 @@ class HueGroup(HueBase):
                 if 'bri' not in command:
                     command['bri'] = self.saved_brightness
                 self.saved_brightness = None
-        responses = self.controller.hub[self.hub_idx].set_group(self.element_id, command)
+        responses = self.controller.hub[self.hub_idx].set_group(self.id, command)
         return all(
             [list(resp.keys())[0] == 'success' for resp in responses[0]])
 
