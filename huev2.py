@@ -39,7 +39,7 @@ class HueBridge:
             LOGGER.error(f"Error discovering Hue bridges online {resp.status}")
             return None
         for entry in resp.json():
-           discovered_bridges.append(entry["internalipaddress"])
+            discovered_bridges.append(entry["internalipaddress"])
         return discovered_bridges
 
     def bridge_conn(self):
@@ -58,7 +58,7 @@ class HueBridge:
                 self.bridge_pool.close()
             else:
                 raise PhueRegistrationException(403, 'Link button is not pressed')
-        
+
         """ establish default connection pool """
         self.headers = {"hue-application-key": self.username}
         self.bridge_pool = urllib3.HTTPSConnectionPool(self.hub_ip, cert_reqs="CERT_REQUIRED", ca_certs="hue.crt",
@@ -66,7 +66,7 @@ class HueBridge:
         self.get_bridge()
 
     def get_token(self):
-        data = {"devicetype":"polyglot#udi-hue-pg3", "generateclientkey": True} 
+        data = {"devicetype":"polyglot#udi-hue-pg3", "generateclientkey": True}
         headers = {"Content-Type": "application/json"}
         req = self.bridge_pool.request("POST", "/api", headers=headers, json=data)
         if req.status != 200:
@@ -81,7 +81,7 @@ class HueBridge:
             LOGGER.debug(f"Got username: {result['username']}")
             return result
         return None
-        
+
     def get_bridge(self):
         req = self.bridge_pool.request("GET", "/clip/v2/resource/bridge")
         if req.status == 403:
@@ -139,6 +139,15 @@ class HueBridge:
         headers["Content-Type"] = "application/json"
         req = self.bridge_pool.request("PUT", f"/clip/v2/resource/light/{light_id}", headers=headers, json=command)
         if req.status != 200:
-            LOGGER.error(f"Error setting light: {req.status} {req}")
+            LOGGER.error(f"Error setting light: {req.status} {req.data}")
+            return False
+        return req.json()["data"]
+
+    def set_group(self, group_id, command):
+        headers = self.headers
+        headers["Content-Type"] = "application/json"
+        req = self.bridge_pool.request("PUT", f"/clip/v2/resource/grouped_light/{group_id}", headers=headers, json=command)
+        if req.status != 200:
+            LOGGER.error(f"Error setting group: {req.status} {req.data}")
             return False
         return req.json()["data"]

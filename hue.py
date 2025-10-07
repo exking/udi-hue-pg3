@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
 """ Phillips Hue Node Server for ISY """
 
-from converters import id_2_addr
-from http.client import BadStatusLine  # Python 3.x
-import udi_interface
-from node_types import HueDimmLight, HueWhiteLight, HueColorLight, HueEColorLight, HueGroup
 import sys
-import urllib3
-import sseclient
-import huev2
 import logging
 import json
 import time
 from threading import Thread
+import urllib3
+import sseclient
+import udi_interface
+import huev2
+from converters import id2addr
+from node_types import HueEColorLight, HueGroup
 
 LOGGER = udi_interface.LOGGER
 Custom = udi_interface.Custom
 
 class Control(udi_interface.Node):
     """ Phillips Hue Node Server """
-    
+
     def __init__(self, polyglot, primary, address, name):
         super().__init__(polyglot, primary, address, name)
         self.parameters = Custom(polyglot, 'customparams')
@@ -32,6 +31,8 @@ class Control(udi_interface.Node):
         self.devices = {}
         self.groups = {}
         self.scenes = {}
+        self.rooms = {}
+        self.zones = {}
         self.scene_lookup = []
         self.ignore_second_on = False
         self.stream_thread = {}
@@ -44,7 +45,7 @@ class Control(udi_interface.Node):
         self.poly.ready()
         self.poly.addNode(self)
         LOGGER.info('Started Hue Protocol')
-                        
+
     def start(self):
         self.poly.updateProfile()
         self.poly.Notices.clear()
@@ -52,7 +53,7 @@ class Control(udi_interface.Node):
     def parameter_handler(self, params):
         self.parameters.load(params)
         self.poly.Notices.clear()
-        """ Initial node setup. """
+        # Initial node setup.
         # define nodes for settings
         if self.parameters['debug']:
             LOGGER.setLevel(logging.DEBUG)
@@ -67,17 +68,16 @@ class Control(udi_interface.Node):
 
     def poll(self, polltype):
         for idx in self.hub.keys():
-            self._checkStreaming(idx)
+            self._check_streaming(idx)
 
     def data_handler(self, data):
-         self.cust_data.load(data)
+        self.cust_data.load(data)
 
     def connect(self):
         custom_data_ip = False
         custom_data_user = False
         save_needed = False
         bridges = {}
-        bridges_list = None
         hub_list = []
         """ Connect to Phillips Hue Hub """
         # pylint: disable=broad-except
@@ -85,7 +85,7 @@ class Control(udi_interface.Node):
         if self.cust_data['bridge_ip']:
             bridge_ip = self.cust_data['bridge_ip']
             custom_data_ip = True
-            LOGGER.info('Bridge IP found in the Database: {}'.format(bridge_ip))
+            LOGGER.info(f'Bridge IP found in the Database: {bridge_ip}')
         if self.cust_data['bridge_user']:
             bridge_user = self.cust_data['bridge_user']
             custom_data_user = True
@@ -93,7 +93,7 @@ class Control(udi_interface.Node):
         if self.cust_data['bridges']:
             for idx, bridge in self.cust_data['bridges'].items():
                 bridges[bridge['ip']] = bridge['user']
-            LOGGER.info('Database has {} bridge(s) configuration'.format(len(bridges)))
+            LOGGER.info(f'Database has {len(bridges)} bridge(s) configuration')
         else:
             LOGGER.info('Saved bridges information is not found')
             if custom_data_ip and custom_data_user:
@@ -106,24 +106,24 @@ class Control(udi_interface.Node):
             try:
                 hub_list = json.loads(self.parameters['bridges'])
             except Exception as ex:
-                LOGGER.error('Failed to read bridges variable {} {}'.format(self.parameters['bridges'], ex))
+                LOGGER.error(f"Failed to read bridges variable {self.parameters['bridges']} {ex}")
                 return
-            LOGGER.info('Reading bridges configuration: {}'.format(hub_list))
+            LOGGER.info(f'Reading bridges configuration: {hub_list}')
         else:
             if len(bridges) > 0:
                 for hub in bridges.keys():
                     hub_list.append(hub)
-                    LOGGER.info('Adding existing bridge {}'.format(hub))
+                    LOGGER.info(f'Adding existing bridge {hub}')
             else:
                 LOGGER.info('No bridge configuration found, trying discovery...')
                 hub_list = HueBridge.discover_bridges()
 
         for hub_ip in hub_list:
-            ''' Initialize structures '''
+            # Initialize structures
             hub_user = None
 
             if hub_ip in bridges:
-                LOGGER.info('Found username for bridge {} in the DB'.format(hub_ip))
+                LOGGER.info(f'Found username for bridge {hub_ip} in the DB')
                 hub_user = bridges[hub_ip]
             else:
                 save_needed = True
@@ -167,45 +167,58 @@ class Control(udi_interface.Node):
 
     def _discover(self, hub_idx):
         """ Poll Hue for new lights/existing lights' statuses """
-        if self.hub[hub_idx] is None or self.discovery == True:
+        if self.hub[hub_idx] is None or self.discovery is True:
             return True
         self.discovery = True
-        LOGGER.info('Hub {} Starting Hue discovery...'.format(hub_idx))
+        LOGGER.info(f'Hub {hub_idx} Starting Hue discovery...')
 
         self.lights[hub_idx] = self.hub[hub_idx].get_lights()
         self.devices[hub_idx] = self.hub[hub_idx].get_devices()
+        self.groups[hub_idx] = self.hub[hub_idx].get_groups()
+        self.rooms[hub_idx] = self.hub[hub_idx].get_rooms()
+        self.zones[hub_idx] = self.hub[hub_idx].get_zones()
         self.zigbee_connectivity[hub_idx] = self.hub[hub_idx].get_zigbee_connectivity()
+
         if not self.lights[hub_idx]:
-            LOGGER.error('Hub {} Discover: Failed to read Lights from the Hue Bridge'.format(hub_idx))
+            LOGGER.error(f'Hub {hub_idx} Discover: Failed to read Lights from the Hue Bridge')
             self.discovery = False
             return False
-        
-        LOGGER.info('Hub {} {} bulbs found. Checking status and adding to ISY if necessary.'.format(hub_idx, len(self.lights[hub_idx])))
+
+        LOGGER.info(f'Hub {hub_idx} {len(self.lights[hub_idx])} bulbs found. Checking status and adding to ISY if necessary.')
 
         for light in self.lights[hub_idx]:
-            address = id_2_addr(light['id'])
+            address = id2addr(light['id'])
             name = light['metadata']['name']
-            
+
             if not self.poly.getNode(address):
                 if light['type'] == "light":
                     LOGGER.info(f'Hub {hub_idx} Found Extended Color Bulb: {name}({address})')
                     self.poly.addNode(HueEColorLight(self.poly, self.address, address, name, light['id'], light, hub_idx))
                 else:
-                    LOGGER.info('Hub {} Found Unsupported {} Bulb: {}({})'.format(hub_idx, data['type'], name, address))
+                    LOGGER.info(f"Hub {hub_idx} Found Unsupported {light['type']} Bulb: {name}({address})")
 
-#        self.scenes[hub_idx] = self._get_scenes(hub_idx)
-#        if not self.scenes[hub_idx]:
-#            LOGGER.error('Hub {} Discover: Failed to read Scenes from the Hue Bridge'.format(hub_idx))
-#        
-#        self.groups[hub_idx] = self._get_groups(hub_idx)
-#        if not self.groups[hub_idx]:
-#            LOGGER.error('Hub {} Discover: Failed to read Groups from the Hue Bridge'.format(hub_idx))
-#            self.discovery = False
-#            return False
-#
-#        LOGGER.info('Hub {} {} groups found. Checking status and adding to ISY if necessary.'.format(hub_idx, len(self.groups[hub_idx])))
-#
-#        for group_id, data in self.groups[hub_idx].items():
+        LOGGER.info(f'Hub {hub_idx} {len(self.groups[hub_idx])} groups found. Checking status and adding to ISY if necessary.')
+
+        for group in self.groups[hub_idx]:
+            address = id2addr(group['id'])
+            if group['owner']['rtype'] == 'room':
+                for room in self.rooms[hub_idx]:
+                    if room['id'] == group['owner']['rid']:
+                        name = room['metadata']['name']
+                        break
+            elif group['owner']['rtype'] == 'zone':
+                for zone in self.zones[hub_idx]:
+                    if zone['id'] == group['owner']['rid']:
+                        name = zone['metadata']['name']
+                        break
+            elif group['owner']['rtype'] == 'bridge_home':
+                name = 'All Lights'
+            else:
+                name = 'Unknown group'
+
+            if not self.poly.getNode(address):
+                self.poly.addNode(HueGroup(self.poly, self.address, address, name, group['id'], group, hub_idx))
+
 #            scene_idx = 0
 #            if len(self.hub) > 1:
 #                address = 'huegrp'+hub_idx.split('.')[-1]+group_id
@@ -215,7 +228,7 @@ class Control(udi_interface.Node):
 #                name = 'All Lights'
 #            else:
 #                name = data['name']
-#            
+#
 #            if 'lights' in data and len(data['lights']) > 0:
 #                if not self.poly.getNode(address):
 #                    LOGGER.info("Hub {} Found {} {} with {} light(s)".format(hub_idx, data['type'], name, len(data['lights'])))
@@ -231,14 +244,14 @@ class Control(udi_interface.Node):
 #                if self.poly.getNode(address):
 #                    LOGGER.info("Hub {} {} {} does not have any lights in it, removing a node".format(hub_idx, data['type'], name))
 #                    self.poly.delNode(address)
-        
-        LOGGER.info('Hub {} Discovery complete'.format(hub_idx))
-        self._checkStreaming(hub_idx)
+
+        LOGGER.info(f'Hub {hub_idx} Discovery complete')
+        self._check_streaming(hub_idx)
         self.discovery = False
         return True
 
     def updateNodes(self, hub_idx):
-        if self.hub[hub_idx] is None or self.discovery == True:
+        if self.hub[hub_idx] is None or self.discovery is True:
             return True
         self.lights[hub_idx] = self.hub[hub_idx].get_lights()
         #self.groups[hub_idx] = self._get_groups(hub_idx)
@@ -253,10 +266,10 @@ class Control(udi_interface.Node):
     def updateInfo(self):
         pass
 
-    def _checkStreaming(self, hub_ip):
+    def _check_streaming(self, hub_ip):
         if hub_ip not in self.stream_thread or self.stream_thread[hub_ip] is None:
             LOGGER.debug('Starting Event Streaming thread for the first time.')
-            self._startStreaming(hub_ip)
+            self._start_streaming(hub_ip)
         else:
             if self.stream_thread[hub_ip].is_alive():
                 if (int(time.time()) - self.stream_last_update[hub_ip]) > 3600:
@@ -264,17 +277,16 @@ class Control(udi_interface.Node):
                     self.poly.restart()
                     return False
                 return True
-            else:
-                LOGGER.warning('Event Streaming thread died, attempting to restart.')
-                self._startStreaming(hub_ip)
+            LOGGER.warning('Event Streaming thread died, attempting to restart.')
+            self._start_streaming(hub_ip)
         return True
 
-    def _startStreaming(self, hub_ip):
-        self.stream_thread[hub_ip] = Thread(target=self._streamingProc, args=[hub_ip], daemon=True)
+    def _start_streaming(self, hub_ip):
+        self.stream_thread[hub_ip] = Thread(target=self._streaming_process, args=[hub_ip], daemon=True)
         self.stream_thread[hub_ip].start()
         self.stream_last_update[hub_ip] = int(time.time())
-        
-    def _streamingProc(self, hub_ip):
+
+    def _streaming_process(self, hub_ip):
         headers = {
             'hue-application-key': self.hub[hub_ip].username,
             'Accept': 'text/event-stream'
@@ -284,17 +296,17 @@ class Control(udi_interface.Node):
         try:
             response = http.request('GET', url, preload_content=False, headers=headers)
         except Exception as e:
-            LOGGER.error('REST Streaming Request Failed: {}'.format(e))
+            LOGGER.error(f'REST Streaming Request Failed: {e}')
             http.clear()
-            return False
+            return
         client = sseclient.SSEClient(response)
         for event in client.events():  # returns a generator
             self.stream_last_update[hub_ip] = int(time.time())
             event_data = json.loads(event.data)
             for event_item in event_data:
                 for event_chunk in event_item['data']:
-                    if event_chunk['type'] == 'light':
-                        address = id_2_addr(event_chunk['id'])
+                    if event_chunk['type'] == 'light' or event_chunk['type'] == 'grouped_light':
+                        address = id2addr(event_chunk['id'])
                         if address in self.poly.getNodes():
                             self.poly.getNode(address).process_event(event_chunk)
                         else:
@@ -315,10 +327,6 @@ class Control(udi_interface.Node):
 
 if __name__ == "__main__":
     try:
-        """
-        Grab the "HUE" variable from the .polyglot/.env file. This is where
-        we tell it what profile number this NodeServer is.
-        """
         poly = udi_interface.Interface("Hue")
         poly.start()
         Control(poly, 'huebridge', 'huebridge', 'Hue')
