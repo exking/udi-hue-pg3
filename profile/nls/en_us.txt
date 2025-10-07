@@ -84,10 +84,18 @@ COLORS_HCSEL-24 = White
 
 ALERTS_HASEL-1 = None
 ALERTS_HASEL-2 = Breathe
-ALERTS_HASEL-3 = Long Breathe
 
 EFFECTS_HESEL-1 = None
-EFFECTS_HESEL-2 = Colorloop
+EFFECTS_HESEL-2 = Prism
+EFFECTS_HESEL-3 = Opal
+EFFECTS_HESEL-4 = Glisten
+EFFECTS_HESEL-5 = Sparkle
+EFFECTS_HESEL-6 = Fire
+EFFECTS_HESEL-7 = Candle
+EFFECTS_HESEL-8 = Underwater
+EFFECTS_HESEL-9 = Cosmos
+EFFECTS_HESEL-10 = Sunbeam
+EFFECTS_HESEL-11 = Enchant
 
 #Generic for all Types
 CMDP-H-NAME = Hue

@@ -13,8 +13,9 @@ DEF_INCREMENT = 10
 # Transition time for FadeUp/Down commands
 FADE_TRANSTIME = 4000
 
-HUE_EFFECTS = ['none', 'colorloop']
-HUE_ALERTS = ['none', 'select', 'lselect']
+HUE_EFFECTS = ['no_effect', 'prism', 'opal', 'glisten', 'sparkle', 'fire', 'candle', 'underwater', 'cosmos', 'sunbeam', 'enchant']
+HUE_TIMED_EFFECTS = ['no_effect', 'sunrise', 'sunset']
+HUE_ALERTS = ['none', 'breathe']
 
 class HueBase(udi_interface.Node):
     """ Base class for lights and groups """
@@ -46,9 +47,10 @@ class HueBase(udi_interface.Node):
     def query(self):
         pass
 
-    def setBaseCtl(self, command):
+    def set_base_ctl(self, command):
         """ Basic On/Off and brightness controls """
         cmd = command.get('cmd')
+        hue_command = {}
 
         # transition time for FastOn/Off
         if cmd in [ 'DFON', 'DFOF' ]:
@@ -57,10 +59,9 @@ class HueBase(udi_interface.Node):
             trans = self.transitiontime
 
         if cmd in ['DON', 'DFON']:
-            hue_command = {}
             val = command.get('value')
             if val:
-                self.brightness = self._validateBri(int(val))
+                self.brightness = self._validate_brightness(int(val))
                 hue_command = {'dimming': {'brightness': self.brightness } }
                 self.setDriver('GV5', self.brightness)
             elif cmd == 'DON' and self.on and self.controller.ignore_second_on:
@@ -92,49 +93,52 @@ class HueBase(udi_interface.Node):
         elif cmd in ['BRT', 'DIM', 'FDUP', 'FDDOWN', 'FDSTOP']:
             if cmd == 'BRT':
                 increment = DEF_INCREMENT
-                if self.brightness + increment > 100:
-                    increment = 100 - self.brightness
+                direction = 'up'
+                self.brightness += increment
             elif cmd == 'DIM':
-                increment = -DEF_INCREMENT
-                if self.brightness + increment < 1:
-                    increment = 1 - self.brightness
+                increment = DEF_INCREMENT
+                direction = 'down'
+                self.brightness -= increment
             elif cmd == 'FDUP':
                 trans = FADE_TRANSTIME
-                increment = 100 - self.brightness
+                direction = 'up'
+                increment = 100
             elif cmd == 'FDDOWN':
                 trans = FADE_TRANSTIME
-                increment = 1 - self.brightness
+                direction = 'down'
+                increment = 100
             else:
                 # FDSTOP
+                direction = 'stop'
                 increment = 0
-            self.brightness += increment
             self.st = self.brightness
-            hue_command = { 'bri_inc': increment }
+            hue_command['dimming_delta'] = { 'action': direction, 'brightness_delta': increment }
             self.setDriver('GV5', self.brightness)
             self._send_command(hue_command, trans)
         else:
-            LOGGER.error(f'setBaseCtl received an unknown command: {cmd}')
+            LOGGER.error(f'set_base_ctl received an unknown command: {cmd}')
         self.setDriver('ST', self.st)
 
-    def setBrightness(self, command):
-        self.brightness = self._validateBri(int(command.get('value')))
+    def set_brightness(self, command):
+        self.brightness = self._validate_brightness(int(command.get('value')))
         self.setDriver('GV5', self.brightness)
         self.setDriver('ST', self.st)
         hue_command = { 'dimming': {'brightness': self.brightness }}
         return self._send_command(hue_command)
 
-    def setTransition(self, command):
+    def set_transition(self, command):
         self.transitiontime = int(command.get('value'))
         self.setDriver('RR', self.transitiontime)
         return True
 
-    def setAlert(self, command):
+    def set_alert(self, command):
         val = int(command.get('value')) - 1
-        self.alert = HUE_ALERTS[val]
-        hue_command = { 'alert': self.alert }
+        #self.alert = HUE_ALERTS[val]
+        self.alert = 'breathe'
+        hue_command = {'alert': {'action': self.alert}}
         return self._send_command(hue_command)
 
-    def _validateBri(self, brightness):
+    def _validate_brightness(self, brightness):
         if brightness > 100:
             brightness = 100
         elif brightness < 0:
@@ -142,15 +146,15 @@ class HueBase(udi_interface.Node):
         self.st = brightness
         return brightness
 
-    def setCt(self, command):
+    def set_ct(self, command):
         self.ct = int(command.get('value'))
         self.setDriver('CLITEMP', self.ct)
         hue_command = {'color_temperature': { 'mirek': kel2mired(self.ct) }}
         return self._send_command(hue_command)
 
-    def setCtBri(self, command):
+    def set_ct_bri(self, command):
         query = command.get('query')
-        self.brightness = self._validateBri(int(query.get('BR.uom100')))
+        self.brightness = self._validate_brightness(int(query.get('BR.uom100')))
         self.ct = int(query.get('K.uom26'))
         self.setDriver('CLITEMP', self.ct)
         self.setDriver('ST', self.st)
@@ -158,13 +162,13 @@ class HueBase(udi_interface.Node):
         hue_command = { 'color_temperature': {'mirek': kel2mired(self.ct)}, 'dimming': {'brightness': self.brightness }}
         return self._send_command(hue_command)
 
-    def setColorRGB(self, command):
+    def set_color_rgb(self, command):
         query = command.get('query')
         color_r = int(query.get('R.uom100'))
         color_g = int(query.get('G.uom100'))
         color_b = int(query.get('B.uom100'))
         transtime = int(query.get('D.uom42'))
-        self.brightness = self._validateBri(int(query.get('BR.uom100')))
+        self.brightness = self._validate_brightness(int(query.get('BR.uom100')))
         (self.color_x, self.color_y) = RGB_2_xy(color_r, color_g, color_b)
         hue_command = {'color': {'xy': {'x': self.color_x, 'y': self.color_y}}, 'dimming': {'brightness': self.brightness}}
         self.setDriver('GV1', self.color_x)
@@ -173,12 +177,12 @@ class HueBase(udi_interface.Node):
         self.setDriver('ST', self.st)
         return self._send_command(hue_command, transtime)
 
-    def setColorXY(self, command):
+    def set_color_xy(self, command):
         query = command.get('query')
         self.color_x = float(query.get('X.uom56'))
         self.color_y = float(query.get('Y.uom56'))
         transtime = int(query.get('D.uom42'))
-        self.brightness = self._validateBri(int(query.get('BR.uom100')))
+        self.brightness = self._validate_brightness(int(query.get('BR.uom100')))
         hue_command = {'color': {'xy': {'x': self.color_x, 'y': self.color_y}}, 'dimming': {'brightness': self.brightness}}
         self.setDriver('GV1', self.color_x)
         self.setDriver('GV2', self.color_y)
@@ -186,7 +190,7 @@ class HueBase(udi_interface.Node):
         self.setDriver('ST', self.st)
         return self._send_command(hue_command, transtime)
 
-    def setColor(self, command):
+    def set_color(self, command):
         c_id = int(command.get('value')) - 1
         (self.color_x, self.color_y) = color_xy(c_id)
         hue_command = {'color': {'xy': {'x': self.color_x, 'y': self.color_y}}}
@@ -194,10 +198,16 @@ class HueBase(udi_interface.Node):
         self.setDriver('GV2', self.color_y)
         return self._send_command(hue_command)
 
-    def setEffect(self, command):
+    def set_effect(self, command):
         val = int(command.get('value')) - 1
         self.effect = HUE_EFFECTS[val]
-        hue_command = { 'effect': self.effect }
+        hue_command = { 'effects_v2': {'effect': {'action': self.effect}}} 
+        return self._send_command(hue_command)
+
+    def set_timed_effect(self, command):
+        val = int(command.get('value')) - 1
+        self.effect = HUE_TIMED_EFFECTS[val]
+        hue_command = { 'timed_effects': {'effect': self.effect, 'duration': 800}} 
         return self._send_command(hue_command)
 
     def process_event(self, event):
@@ -340,11 +350,11 @@ class HueDimmLight(HueBase):
               ]
 
     commands = {
-                   'DON': HueBase.setBaseCtl, 'DOF': HueBase.setBaseCtl, 'QUERY': HueBase.query,
-                   'DFON': HueBase.setBaseCtl, 'DFOF': HueBase.setBaseCtl, 'BRT': HueBase.setBaseCtl,
-                   'DIM': HueBase.setBaseCtl, 'FDUP': HueBase.setBaseCtl, 'FDDOWN': HueBase.setBaseCtl,
-                   'FDSTOP': HueBase.setBaseCtl, 'SET_BRI': HueBase.setBrightness, 'RR': HueBase.setTransition,
-                   'SET_ALERT': HueBase.setAlert
+                   'DON': HueBase.set_base_ctl, 'DOF': HueBase.set_base_ctl, 'QUERY': HueBase.query,
+                   'DFON': HueBase.set_base_ctl, 'DFOF': HueBase.set_base_ctl, 'BRT': HueBase.set_base_ctl,
+                   'DIM': HueBase.set_base_ctl, 'FDUP': HueBase.set_base_ctl, 'FDDOWN': HueBase.set_base_ctl,
+                   'FDSTOP': HueBase.set_base_ctl, 'SET_BRI': HueBase.set_brightness, 'RR': HueBase.set_transition,
+                   'SET_ALERT': HueBase.set_alert
                }
 
     id = 'DIMM_LIGHT'
@@ -369,11 +379,11 @@ class HueWhiteLight(HueDimmLight):
               ]
 
     commands = {
-                   'DON': HueBase.setBaseCtl, 'DOF': HueBase.setBaseCtl, 'QUERY': HueBase.query,
-                   'DFON': HueBase.setBaseCtl, 'DFOF': HueBase.setBaseCtl, 'BRT': HueBase.setBaseCtl,
-                   'DIM': HueBase.setBaseCtl, 'FDUP': HueBase.setBaseCtl, 'FDDOWN': HueBase.setBaseCtl,
-                   'FDSTOP': HueBase.setBaseCtl, 'SET_BRI': HueBase.setBrightness, 'RR': HueBase.setTransition,
-                   'CLITEMP': HueBase.setCt, 'SET_ALERT': HueBase.setAlert, 'SET_CTBR': HueBase.setCtBri
+                   'DON': HueBase.set_base_ctl, 'DOF': HueBase.set_base_ctl, 'QUERY': HueBase.query,
+                   'DFON': HueBase.set_base_ctl, 'DFOF': HueBase.set_base_ctl, 'BRT': HueBase.set_base_ctl,
+                   'DIM': HueBase.set_base_ctl, 'FDUP': HueBase.set_base_ctl, 'FDDOWN': HueBase.set_base_ctl,
+                   'FDSTOP': HueBase.set_base_ctl, 'SET_BRI': HueBase.set_brightness, 'RR': HueBase.set_transition,
+                   'CLITEMP': HueBase.set_ct, 'SET_ALERT': HueBase.set_alert, 'SET_CTBR': HueBase.set_ct_bri
                }
 
     id = 'WHITE_LIGHT'
@@ -405,13 +415,13 @@ class HueColorLight(HueDimmLight):
               ]
 
     commands = {
-                   'DON': HueBase.setBaseCtl, 'DOF': HueBase.setBaseCtl, 'QUERY': HueBase.query,
-                   'DFON': HueBase.setBaseCtl, 'DFOF': HueBase.setBaseCtl, 'BRT': HueBase.setBaseCtl,
-                   'DIM': HueBase.setBaseCtl, 'FDUP': HueBase.setBaseCtl, 'FDDOWN': HueBase.setBaseCtl,
-                   'FDSTOP': HueBase.setBaseCtl, 'SET_BRI': HueBase.setBrightness, 'RR': HueBase.setTransition,
-                   'SET_COLOR': HueBase.setColor,
-                   'SET_COLOR_RGB': HueBase.setColorRGB, 'SET_COLOR_XY': HueBase.setColorXY, 'SET_ALERT': HueBase.setAlert,
-                   'SET_EFFECT': HueBase.setEffect
+                   'DON': HueBase.set_base_ctl, 'DOF': HueBase.set_base_ctl, 'QUERY': HueBase.query,
+                   'DFON': HueBase.set_base_ctl, 'DFOF': HueBase.set_base_ctl, 'BRT': HueBase.set_base_ctl,
+                   'DIM': HueBase.set_base_ctl, 'FDUP': HueBase.set_base_ctl, 'FDDOWN': HueBase.set_base_ctl,
+                   'FDSTOP': HueBase.set_base_ctl, 'SET_BRI': HueBase.set_brightness, 'RR': HueBase.set_transition,
+                   'SET_COLOR': HueBase.set_color,
+                   'SET_COLOR_RGB': HueBase.set_color_rgb, 'SET_COLOR_XY': HueBase.set_color_xy, 'SET_ALERT': HueBase.set_alert,
+                   'SET_EFFECT': HueBase.set_effect
                }
 
     id = 'COLOR_LIGHT'
@@ -440,14 +450,14 @@ class HueEColorLight(HueColorLight):
               ]
 
     commands = {
-                   'DON': HueBase.setBaseCtl, 'DOF': HueBase.setBaseCtl, 'QUERY': HueBase.query,
-                   'DFON': HueBase.setBaseCtl, 'DFOF': HueBase.setBaseCtl, 'BRT': HueBase.setBaseCtl,
-                   'DIM': HueBase.setBaseCtl, 'FDUP': HueBase.setBaseCtl, 'FDDOWN': HueBase.setBaseCtl,
-                   'FDSTOP': HueBase.setBaseCtl, 'SET_BRI': HueBase.setBrightness, 'RR': HueBase.setTransition,
-                   'SET_COLOR': HueBase.setColor,
-                   'CLITEMP': HueBase.setCt, 'SET_COLOR_RGB': HueBase.setColorRGB,
-                   'SET_COLOR_XY': HueBase.setColorXY, 'SET_ALERT': HueBase.setAlert, 'SET_EFFECT': HueBase.setEffect,
-                   'SET_CTBR': HueBase.setCtBri
+                   'DON': HueBase.set_base_ctl, 'DOF': HueBase.set_base_ctl, 'QUERY': HueBase.query,
+                   'DFON': HueBase.set_base_ctl, 'DFOF': HueBase.set_base_ctl, 'BRT': HueBase.set_base_ctl,
+                   'DIM': HueBase.set_base_ctl, 'FDUP': HueBase.set_base_ctl, 'FDDOWN': HueBase.set_base_ctl,
+                   'FDSTOP': HueBase.set_base_ctl, 'SET_BRI': HueBase.set_brightness, 'RR': HueBase.set_transition,
+                   'SET_COLOR': HueBase.set_color,
+                   'CLITEMP': HueBase.set_ct, 'SET_COLOR_RGB': HueBase.set_color_rgb,
+                   'SET_COLOR_XY': HueBase.set_color_xy, 'SET_ALERT': HueBase.set_alert, 'SET_EFFECT': HueBase.set_effect,
+                   'SET_CTBR': HueBase.set_ct_bri
                }
 
     id = 'ECOLOR_LIGHT'
@@ -559,7 +569,7 @@ class HueGroup(HueBase):
         self.setDriver('RR', self.transitiontime)
         return True
 
-    def setHueScene(self, command):
+    def set_hue_scene(self, command):
         requested_scene_id = int(command.get('value'))
         for hue_scene in self.controller.scene_lookup:
             if hue_scene['hub'] == self.hub_idx and hue_scene['group'] == self.group_id and hue_scene['idx'] == requested_scene_id:
@@ -596,14 +606,14 @@ class HueGroup(HueBase):
               ]
 
     commands = {
-                   'DON': HueBase.setBaseCtl, 'DOF': HueBase.setBaseCtl, 'QUERY': HueBase.query,
-                   'DFON': HueBase.setBaseCtl, 'DFOF': HueBase.setBaseCtl, 'BRT': HueBase.setBaseCtl,
-                   'DIM': HueBase.setBaseCtl, 'FDUP': HueBase.setBaseCtl, 'FDDOWN': HueBase.setBaseCtl,
-                   'FDSTOP': HueBase.setBaseCtl, 'SET_BRI': HueBase.setBrightness, 'RR': HueBase.setTransition,
-                   'SET_COLOR': HueBase.setColor,
-                   'CLITEMP': HueBase.setCt, 'SET_COLOR_RGB': HueBase.setColorRGB,
-                   'SET_COLOR_XY': HueBase.setColorXY, 'SET_ALERT': HueBase.setAlert, 'SET_EFFECT': HueBase.setEffect,
-                   'SET_CTBR': HueBase.setCtBri, 'SET_HSCENE': setHueScene
+                   'DON': HueBase.set_base_ctl, 'DOF': HueBase.set_base_ctl, 'QUERY': HueBase.query,
+                   'DFON': HueBase.set_base_ctl, 'DFOF': HueBase.set_base_ctl, 'BRT': HueBase.set_base_ctl,
+                   'DIM': HueBase.set_base_ctl, 'FDUP': HueBase.set_base_ctl, 'FDDOWN': HueBase.set_base_ctl,
+                   'FDSTOP': HueBase.set_base_ctl, 'SET_BRI': HueBase.set_brightness, 'RR': HueBase.set_transition,
+                   'SET_COLOR': HueBase.set_color,
+                   'CLITEMP': HueBase.set_ct, 'SET_COLOR_RGB': HueBase.set_color_rgb,
+                   'SET_COLOR_XY': HueBase.set_color_xy, 'SET_ALERT': HueBase.set_alert, 'SET_EFFECT': HueBase.set_effect,
+                   'SET_CTBR': HueBase.set_ct_bri, 'SET_HSCENE': set_hue_scene
                }
 
     id = 'HUE_GROUP'
