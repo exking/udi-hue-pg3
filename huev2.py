@@ -127,6 +127,13 @@ class HueBridge:
             return False
         return req.json()["data"]
 
+    def get_scenes(self):
+        req = self.bridge_pool.request("GET", "/clip/v2/resource/scene")
+        if req.status != 200:
+            LOGGER.error(f"Error requesting scenes: {req.status}")
+            return False
+        return req.json()["data"]
+
     def get_zigbee_connectivity(self):
         req = self.bridge_pool.request("GET", "/clip/v2/resource/zigbee_connectivity")
         if req.status != 200:
@@ -149,5 +156,14 @@ class HueBridge:
         req = self.bridge_pool.request("PUT", f"/clip/v2/resource/grouped_light/{group_id}", headers=headers, json=command)
         if req.status != 200:
             LOGGER.error(f"Error setting group: {req.status} {req.data}")
+            return False
+        return req.json()["data"]
+
+    def set_scene(self, scene_id, command):
+        headers = self.headers
+        headers["Content-Type"] = "application/json"
+        req = self.bridge_pool.request("PUT", f"/clip/v2/resource/scene/{scene_id}", headers=headers, json=command)
+        if req.status != 200:
+            LOGGER.error(f"Error setting scene: {req.status} {req.data}")
             return False
         return req.json()["data"]

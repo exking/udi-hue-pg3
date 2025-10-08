@@ -177,6 +177,7 @@ class Control(udi_interface.Node):
         self.groups[hub_idx] = self.hub[hub_idx].get_groups()
         self.rooms[hub_idx] = self.hub[hub_idx].get_rooms()
         self.zones[hub_idx] = self.hub[hub_idx].get_zones()
+        self.scenes[hub_idx] = self.hub[hub_idx].get_scenes()
         self.zigbee_connectivity[hub_idx] = self.hub[hub_idx].get_zigbee_connectivity()
 
         if not self.lights[hub_idx]:
@@ -201,16 +202,27 @@ class Control(udi_interface.Node):
 
         for group in self.groups[hub_idx]:
             address = id2addr(group['id'])
+            scene_idx = 0
             if group['owner']['rtype'] == 'room':
                 for room in self.rooms[hub_idx]:
                     if room['id'] == group['owner']['rid']:
                         name = room['metadata']['name']
                         break
+                for scene in self.scenes[hub_idx]:
+                    if scene['group']['rtype'] == 'room' and scene['group']['rid'] == room['id']:
+                        self.scene_lookup.append({ "hub": hub_idx, "group": group['id'], "idx": scene_idx, "id": scene['id'], "name": scene['metadata']['name']})
+                        LOGGER.info(f"Hub {hub_idx} Room {name} {scene_idx}:{scene['id']}:{scene['metadata']['name']}")
+                        scene_idx += 1
             elif group['owner']['rtype'] == 'zone':
                 for zone in self.zones[hub_idx]:
                     if zone['id'] == group['owner']['rid']:
                         name = zone['metadata']['name']
                         break
+                for scene in self.scenes[hub_idx]:
+                    if scene['group']['rtype'] == 'zone' and scene['group']['rid'] == zone['id']:
+                        self.scene_lookup.append({ "hub": hub_idx, "group": group['id'], "idx": scene_idx, "id": scene['id'], "name": scene['metadata']['name']})
+                        LOGGER.info(f"Hub {hub_idx} Zone {name} {scene_idx}:{scene['id']}:{scene['metadata']['name']}")
+                        scene_idx += 1
             elif group['owner']['rtype'] == 'bridge_home':
                 name = 'All Lights'
             else:
@@ -252,16 +264,16 @@ class Control(udi_interface.Node):
 
     def updateNodes(self, hub_idx):
         if self.hub[hub_idx] is None or self.discovery is True:
-            return True
+            return
         self.lights[hub_idx] = self.hub[hub_idx].get_lights()
-        #self.groups[hub_idx] = self._get_groups(hub_idx)
-#        try:
+        self.devices[hub_idx] = self.hub[hub_idx].get_devices()
+        self.groups[hub_idx] = self.hub[hub_idx].get_groups()
+        self.rooms[hub_idx] = self.hub[hub_idx].get_rooms()
+        self.zones[hub_idx] = self.hub[hub_idx].get_zones()
+        self.scenes[hub_idx] = self.hub[hub_idx].get_scenes()
+        self.zigbee_connectivity[hub_idx] = self.hub[hub_idx].get_zigbee_connectivity()
         for node in self.poly.getNodes().values():
             node.updateInfo()
-#        except Exception as ex:
-#            LOGGER.error(f'Exception during {hub_idx} nodes update: {ex}')
-#            return False
-        return True
 
     def updateInfo(self):
         pass
@@ -316,6 +328,10 @@ class Control(udi_interface.Node):
                             if hasattr(node, "zigbee_connectivity_id"):
                                 if node.zigbee_connectivity_id == event_chunk['id']:
                                     node.process_connectivity(event_chunk)
+                    elif event_chunk['type'] == 'scene':
+                        for scene in self.scenes[hub_ip]:
+                            if scene['id'] == event_chunk['id']:
+                                LOGGER.info(f"Scene {scene['metadata']['name']} {scene['id']} is {scene['status']['active']}")
                     else:
                         LOGGER.debug(f"Received unknown event type {event_chunk['type']}: {event_chunk}")
         LOGGER.warning('Streaming Process exited')

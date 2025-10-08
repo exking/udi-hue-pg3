@@ -572,10 +572,10 @@ class HueGroup(HueBase):
     def set_hue_scene(self, command):
         requested_scene_id = int(command.get('value'))
         for hue_scene in self.controller.scene_lookup:
-            if hue_scene['hub'] == self.hub_idx and hue_scene['group'] == self.group_id and hue_scene['idx'] == requested_scene_id:
-                LOGGER.info(f"{self.data['name']} requested scene: {hue_scene['name']} ({requested_scene_id}), hue scene group_id: {hue_scene['group_id']}")
-                return self._send_command({"scene": hue_scene['group_id']})
-        LOGGER.error(f"{self.data['name']} does not seem to have scene index {requested_scene_id}")
+            if hue_scene['hub'] == self.hub_idx and hue_scene['group'] == self.element_id and hue_scene['idx'] == requested_scene_id:
+                LOGGER.info(f"{self.name} requested scene: {hue_scene['name']} ({requested_scene_id}), hue scene id: {hue_scene['id']}")
+                return self.controller.hub[self.hub_idx].set_scene(hue_scene['id'], {'recall': {'action': 'active'}})
+        LOGGER.error(f"{self.name} does not seem to have scene index {requested_scene_id}")
         return False
 
     def _send_command(self, command, transtime=None, checkOn=True):
