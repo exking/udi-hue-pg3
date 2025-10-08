@@ -116,7 +116,7 @@ class Control(udi_interface.Node):
                     LOGGER.info(f'Adding existing bridge {hub}')
             else:
                 LOGGER.info('No bridge configuration found, trying discovery...')
-                hub_list = HueBridge.discover_bridges()
+                hub_list = huev2.HueBridge.discover_bridges()
 
         for hub_ip in hub_list:
             # Initialize structures
