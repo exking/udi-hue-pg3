@@ -356,7 +356,7 @@ class Control(udi_interface.Node):
             event_data = json.loads(event.data)
             for event_item in event_data:
                 for event_chunk in event_item['data']:
-                    if event_chunk['type'] == 'light' or event_chunk['type'] == 'grouped_light':
+                    if event_chunk['type'] == 'light' or event_chunk['type'] == 'grouped_light' or event_chunk['type'] == 'motion':
                         address = id2addr(event_chunk['id'])
                         if address in self.poly.getNodes():
                             self.poly.getNode(address).process_event(event_chunk)
