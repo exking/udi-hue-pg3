@@ -20,7 +20,7 @@ HUE_ALERTS = ['none', 'breathe']
 class HueBase(udi_interface.Node):
     """ Base class for lights and groups """
 
-    def __init__(self, polyglot, primary, address, name, element_id, element, hub_idx):
+    def __init__(self, polyglot, primary, address, name, element_id, element, hub_idx, parent_dev, zb_conn):
         super().__init__(polyglot, primary, address, name)
         self.controller = self.poly.getNode(self.primary)
         self.name = name
@@ -40,8 +40,8 @@ class HueBase(udi_interface.Node):
         self.color_y = None
         self.effect = None
         self.hub_idx = hub_idx
-        self.zigbee_connectivity_id = None
-        self.parent_device_id = None
+        self.zigbee_connectivity_id = zb_conn
+        self.parent_device_id = parent_dev
         self.reachable = 0
 
     def query(self):
@@ -254,8 +254,8 @@ class HueBase(udi_interface.Node):
 class HueDimmLight(HueBase):
     """ Node representing Hue Dimmable Light """
 
-    def __init__(self, polyglot, primary, address, name, element_id, device, hub_idx):
-        super().__init__(polyglot, primary, address, name, element_id, device, hub_idx)
+    def __init__(self, polyglot, primary, address, name, element_id, element, hub_idx, parent_dev, zb_conn):
+        super().__init__(polyglot, primary, address, name, element_id, element, hub_idx, parent_dev, zb_conn)
         self.updateInfo()
 
     def start(self):
@@ -286,14 +286,6 @@ class HueDimmLight(HueBase):
                 LOGGER.info(f"Can't find light in bridge output, removing the node {self.element_id}")
                 self.poly.delNode(self.address)
                 return
-            for parent_dev in self.controller.devices[self.hub_idx]:
-                for dev_service in parent_dev['services']:
-                    if dev_service['rtype'] == 'zigbee_connectivity':
-                        zbc = dev_service['rid']
-                    if dev_service['rid'] == self.element_id and dev_service['rtype'] == 'light':
-                        self.parent_device_id = parent_dev['id']
-                        self.zigbee_connectivity_id = zbc
-                        break
         except KeyError:
             LOGGER.error(f'Node {self.address} no longer exists')
             self.controller.delNode(self.address)
@@ -465,8 +457,8 @@ class HueEColorLight(HueColorLight):
 class HueGroup(HueBase):
     """ Node representing a group of Hue Lights """
 
-    def __init__(self, polyglot, primary, address, name, element_id, device, hub_idx):
-        super().__init__(polyglot, primary, address, name, element_id, device, hub_idx)
+    def __init__(self, polyglot, primary, address, name, element_id, element, hub_idx, parent_dev, zb_conn):
+        super().__init__(polyglot, primary, address, name, element_id, element, hub_idx, parent_dev, zb_conn)
         self.devcount = None
         self.updateInfo()
 
@@ -617,3 +609,84 @@ class HueGroup(HueBase):
                }
 
     id = 'HUE_GROUP'
+
+
+class HueMotion(udi_interface.Node):
+    """ Node representing Hue Motion Sensor """
+
+    def __init__(self, polyglot, primary, address, name, element_id, element, hub_idx, parent_dev, zb_conn):
+        super().__init__(polyglot, primary, address, name)
+        self.controller = self.poly.getNode(self.primary)
+        self.name = name
+        self.address = address
+        self.element_id = element_id
+        self.data = element
+        self.hub_idx = hub_idx
+        self.zigbee_connectivity_id = zb_conn
+        self.parent_device_id = parent_dev
+        self.reachable = 0
+        self.updateInfo()
+
+    def query(self):
+        pass
+
+    def updateInfo(self):
+        self.data = None
+        zbc = None
+        if self.controller.lights[self.hub_idx] is None:
+            return
+        try:
+            for data in self.controller.motion_sensor[self.hub_idx]:
+                if data['id'] == self.element_id:
+                    self.data = data
+                    break
+            if self.data is None:
+                LOGGER.info(f"Can't find motion sensor {self.name} in bridge output, removing the node {self.element_id}")
+                self.poly.delNode(self.address)
+                return
+        except KeyError:
+            LOGGER.error(f'Node {self.address} no longer exists')
+            self.controller.delNode(self.address)
+            return
+        self._updateInfo()
+
+    def _updateInfo(self):
+        if self['motion']['motion_report']['motion']:
+            self.setDriver('ST', 1)
+        else:
+            self.setDriver('ST', 0)
+
+        for zbc in self.controller.zigbee_connectivity[self.hub_idx]:
+            if zbc['id'] == self.zigbee_connectivity_id:
+                if zbc['status'] == 'connected':
+                    self.reachable = 1
+                else:
+                    self.reachable = 0
+#        self.setDriver('GV6', self.reachable)
+
+    def process_event(self, event):
+        LOGGER.debug(f'{self.name} processing event {json.dumps(event)}')
+        if 'motion' in event:
+            if event['motion']['motion_report']['motion']:
+                self.reportCmd('DON')
+                self.setDriver('ST', 1)
+            else:
+                self.reportCmd('DOF')
+                self.setDriver('ST', 0)
+
+    def process_connectivity(self, event):
+        LOGGER.debug(f'{self.name} processing event {json.dumps(event)}')
+        if event['status'] == 'connected':
+            self.reachable = 1
+        else:
+            self.reachable = 0
+#        self.setDriver('GV6', self.reachable)
+
+    drivers = [ {'driver': 'ST', 'value': 0, 'uom': 51}
+              ]
+
+    commands = {
+                   'QUERY':query
+               }
+
+    id = 'HUEMOTION'

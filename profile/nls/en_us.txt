@@ -140,3 +140,8 @@ HUE_SCENE-27 = Custom scene 27
 HUE_SCENE-28 = Custom scene 28
 HUE_SCENE-29 = Custom scene 29
 HUE_SCENE-30 = Custom scene 30
+
+# Hue Motion Sensor
+ND-HMOT-NAME = Hue Motion Sensor
+ND-HUEBR-ICON = MotionSensor
+ST-HHUB-ST-NAME = Motion

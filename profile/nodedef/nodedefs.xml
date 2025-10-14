@@ -310,4 +310,22 @@
         </cmds>
     </nodeDef>
 
+    <!-- Hue Motion Sensor -->
+    <nodeDef id="HUEMOTION" nls="HMOT">
+        <editors />
+        <sts>
+            <st id="ST" editor="HMOTST" />
+        </sts>
+        <cmds>
+            <sends>
+                <cmd id="DON" />
+                <cmd id="DOF" />
+            </sends>
+            <accepts>
+                <cmd id="QUERY">
+                </cmd>
+            </accepts>
+        </cmds>
+    </nodeDef>
+
 </nodeDefs>

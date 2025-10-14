@@ -127,6 +127,20 @@ class HueBridge:
             return False
         return req.json()["data"]
 
+    def get_motion(self):
+        req = self.bridge_pool.request("GET", "/clip/v2/resource/motion")
+        if req.status != 200:
+            LOGGER.error(f"Error requesting motion sensors: {req.status}")
+            return False
+        return req.json()["data"]
+
+    def get_grouped_motion(self):
+        req = self.bridge_pool.request("GET", "/clip/v2/resource/grouped_motion")
+        if req.status != 200:
+            LOGGER.error(f"Error requesting motion sensors groups: {req.status}")
+            return False
+        return req.json()["data"]
+
     def get_scenes(self):
         req = self.bridge_pool.request("GET", "/clip/v2/resource/scene")
         if req.status != 200:

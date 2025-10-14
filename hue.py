@@ -33,6 +33,7 @@ class Control(udi_interface.Node):
         self.scenes = {}
         self.rooms = {}
         self.zones = {}
+        self.motion_sensor = {}
         self.scene_lookup = []
         self.ignore_second_on = False
         self.stream_thread = {}
@@ -160,6 +161,27 @@ class Control(udi_interface.Node):
                 LOGGER.info('Saving usernames to DB')
                 self.cust_data['bridges'] = data
 
+    def _find_parent_dev(self, hub_idx, child_id, child_type):
+        for parent_dev in self.devices[hub_idx]:
+            for dev_service in parent_dev['services']:
+                if dev_service['rid'] == child_id and dev_service['rtype'] == child_type:
+                    return parent_dev['id']
+        return None
+
+    def _get_parent_dev_name(self, hub_idx, parent_id):
+        for parent_dev in self.devices[hub_idx]:
+            if parent_dev['id'] == parent_id:
+                return parent_dev['metadata']['name']
+        return None
+
+    def _get_parent_dev_zbconn(self, hub_idx, parent_id):
+        for parent_dev in self.devices[hub_idx]:
+            if parent_dev['id'] == parent_id:
+                for dev_service in parent_dev['services']:
+                    if dev_service['rtype'] == 'zigbee_connectivity':
+                        return dev_service['rid']
+        return None
+
     def discover(self, command=None):
         self.scene_lookup = []
         for idx in self.hub.keys():
@@ -178,6 +200,7 @@ class Control(udi_interface.Node):
         self.rooms[hub_idx] = self.hub[hub_idx].get_rooms()
         self.zones[hub_idx] = self.hub[hub_idx].get_zones()
         self.scenes[hub_idx] = self.hub[hub_idx].get_scenes()
+        self.motion_sensor[hub_idx] = self.hub[hub_idx].get_motion()
         self.zigbee_connectivity[hub_idx] = self.hub[hub_idx].get_zigbee_connectivity()
 
         if not self.lights[hub_idx]:
@@ -190,13 +213,28 @@ class Control(udi_interface.Node):
         for light in self.lights[hub_idx]:
             address = id2addr(light['id'])
             name = light['metadata']['name']
+            parent_dev = self._find_parent_dev(hub_idx, light['id'], 'light')
+            zb_conn = self._get_parent_dev_zbconn(hub_idx, parent_dev)
 
             if not self.poly.getNode(address):
                 if light['type'] == "light":
                     LOGGER.info(f'Hub {hub_idx} Found Extended Color Bulb: {name}({address})')
-                    self.poly.addNode(HueEColorLight(self.poly, self.address, address, name, light['id'], light, hub_idx))
+                    self.poly.addNode(HueEColorLight(self.poly, self.address, address, name, light['id'], light, hub_idx, parent_dev, zb_conn))
                 else:
                     LOGGER.info(f"Hub {hub_idx} Found Unsupported {light['type']} Bulb: {name}({address})")
+
+        motion_count = len(self.motion_sensor[hub_idx])
+        LOGGER.info(f'Hub {hub_idx} {motion_count} motion sensors found. Checking status and adding to ISY if necessary.')
+        if motion_count > 0:
+            for motion in self.motion_sensor[hub_idx]:
+                address = id2addr(motion['id'])
+                parent_dev = self._find_parent_dev(hub_idx, motion['id'], 'motion')
+                zb_conn = self._get_parent_dev_zbconn(hub_idx, parent_dev)
+                name = self._get_parent_dev_name(hub_idx, parent_dev) + ' motion'
+
+                if not self.poly.getNode(address):
+                    LOGGER.info(f'Hub {hub_idx} Found Motion Sensor: {name}({address})')
+                    self.poly.addNode(HueMotion(self.poly, self.address, address, name, motion['id'], motion, hub_idx, parent_dev, zb_conn))
 
         LOGGER.info(f'Hub {hub_idx} {len(self.groups[hub_idx])} groups found. Checking status and adding to ISY if necessary.')
 
@@ -229,7 +267,7 @@ class Control(udi_interface.Node):
                 name = 'Unknown group'
 
             if not self.poly.getNode(address):
-                self.poly.addNode(HueGroup(self.poly, self.address, address, name, group['id'], group, hub_idx))
+                self.poly.addNode(HueGroup(self.poly, self.address, address, name, group['id'], group, hub_idx, None, None))
 
 #            scene_idx = 0
 #            if len(self.hub) > 1:
@@ -271,6 +309,7 @@ class Control(udi_interface.Node):
         self.rooms[hub_idx] = self.hub[hub_idx].get_rooms()
         self.zones[hub_idx] = self.hub[hub_idx].get_zones()
         self.scenes[hub_idx] = self.hub[hub_idx].get_scenes()
+        self.motion_sensor[hub_idx] = self.hub[hub_idx].get_motion()
         self.zigbee_connectivity[hub_idx] = self.hub[hub_idx].get_zigbee_connectivity()
         for node in self.poly.getNodes().values():
             node.updateInfo()
@@ -284,8 +323,8 @@ class Control(udi_interface.Node):
             self._start_streaming(hub_ip)
         else:
             if self.stream_thread[hub_ip].is_alive():
-                if (int(time.time()) - self.stream_last_update[hub_ip]) > 3600:
-                    LOGGER.error('No updates from streaming thread for >60 minutes, streaming hung up? Restarting the node server...')
+                if (int(time.time()) - self.stream_last_update[hub_ip]) > 86400:
+                    LOGGER.error('No updates from streaming thread for 24 hours, streaming hung up? Restarting the node server...')
                     self.poly.restart()
                     return False
                 return True

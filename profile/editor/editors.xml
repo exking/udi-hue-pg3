@@ -70,4 +70,9 @@
         <range uom="25" subset="0-30" nls="HUE_SCENE" />
     </editor>
 
+    <!-- Motion detected  -->
+    <editor id="HMOTST">
+        <range uom="2" subset="0,1" />
+    </editor>
+
 </editors>
