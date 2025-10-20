@@ -1,7 +1,7 @@
 """ Generic conversion utilities used by the Hue Node Server. """
 
 
-def id_2_addr(hue_id):
+def id2addr(hue_id):
     """ Convert a Phillips Hue ID to ISY Address """
     return hue_id.replace(':', '').replace('-', '')[-14:]
 
@@ -14,9 +14,9 @@ def RGB_2_xy(R, G, B):
     if R + G + B == 0:
         return 0, 0
 
-    var_R = (R / 255.)
-    var_G = (G / 255.)
-    var_B = (B / 255.)
+    var_R = R / 255.
+    var_G = G / 255.
+    var_B = B / 255.
 
     if var_R > 0.04045:
         var_R = ((var_R + 0.055) / 1.055) ** 2.4
@@ -46,7 +46,7 @@ def RGB_2_xy(R, G, B):
     return round(X / (X + Y + Z), 4), round(Y / (X + Y + Z), 4)
 
 
-""" Common color names and their RGB values. """
+# Common color names and their RGB values.
 colors = {
     0: ['aqua', [127, 255, 212]],
     1: ['azure', [0, 127, 255]],
@@ -79,13 +79,8 @@ def color_xy(c_id):
     """ Lookup a color and return the XY values for that color. """
     return RGB_2_xy(*colors[c_id][1])
 
-
-def bri2st(bri):
-    return round(bri / 254. * 100., 4)
-
-
 def kel2mired(value):
+    """ Kelvins to Mireds """
     if value != 0:
         return int(round(1e6 / value))
-    else:
-        return 0
+    return 0
