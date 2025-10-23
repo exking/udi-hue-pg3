@@ -385,15 +385,11 @@ class HueColorLight(HueDimmLight):
 
     def _updateInfo(self):
         super()._updateInfo()
-        #self.effect = self.data['state']['effect']
-        self.color_x = round(float(self.data['color']['xy']['x']), 4)
-        self.color_y = round(float(self.data['color']['xy']['y']), 4)
-        #self.hue = self.data['state']['hue']
-        #self.saturation = self.data['state']['sat']
-        self.setDriver('GV1', self.color_x)
-        self.setDriver('GV2', self.color_y)
-        #self.setDriver('GV3', self.hue)
-        #self.setDriver('GV4', self.saturation)
+        if 'color' in self.data:
+            self.color_x = round(float(self.data['color']['xy']['x']), 4)
+            self.color_y = round(float(self.data['color']['xy']['y']), 4)
+            self.setDriver('GV1', self.color_x)
+            self.setDriver('GV2', self.color_y)
         return True
 
     drivers = [ {'driver': 'ST', 'value': 0, 'uom': 51},

@@ -13,7 +13,7 @@
         {
             "title": "udi-hue-pg3: A Polyglot v2 interface to Philips Hue",
             "author": "xKing",
-            "version": "1.0.2",
+            "version": "1.0.3",
             "date": "Dec 15, 2017",
             "source": "https://github.com/exking/udi-hue-pg3",
             "license": "https://raw.githubusercontent.com/exking/udi-hue-pg3/master/LICENSE"
