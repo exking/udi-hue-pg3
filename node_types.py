@@ -317,7 +317,6 @@ class HueDimmLight(HueBase):
                 else:
                     self.reachable = 0
         self.setDriver('GV6', self.reachable)
-        return True
 
     def _send_command(self, command, transtime=None, checkOn=True):
         """ generic method to send command to light """
@@ -361,7 +360,6 @@ class HueWhiteLight(HueDimmLight):
         else:
             self.ct = 0
         self.setDriver('CLITEMP', self.ct)
-        return True
 
     drivers = [ {'driver': 'ST', 'value': 0, 'uom': 51},
                 {'driver': 'GV5', 'value': 0, 'uom': 100},
@@ -390,7 +388,6 @@ class HueColorLight(HueDimmLight):
             self.color_y = round(float(self.data['color']['xy']['y']), 4)
             self.setDriver('GV1', self.color_x)
             self.setDriver('GV2', self.color_y)
-        return True
 
     drivers = [ {'driver': 'ST', 'value': 0, 'uom': 51},
                 {'driver': 'GV1', 'value': 0, 'uom': 56},
@@ -419,11 +416,10 @@ class HueEColorLight(HueColorLight):
 
     def _updateInfo(self):
         super()._updateInfo()
-        if self.data['color_temperature']['mirek']:
-            self.ct = kel2mired(self.data['color_temperature']['mirek'])
-            self.setDriver('CLITEMP', self.ct)
-        return True
-
+        if 'color_temperature' in self.data:
+            if self.data['color_temperature']['mirek']:
+                self.ct = kel2mired(self.data['color_temperature']['mirek'])
+                self.setDriver('CLITEMP', self.ct)
 
 
     drivers = [ {'driver': 'ST', 'value': 0, 'uom': 51},
@@ -555,7 +551,6 @@ class HueGroup(HueBase):
 #            self.setDriver('GV4', 0)
 
         self.setDriver('RR', self.transitiontime)
-        return True
 
     def set_hue_scene(self, command):
         requested_scene_id = int(command.get('value'))
