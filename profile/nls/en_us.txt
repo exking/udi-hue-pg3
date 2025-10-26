@@ -142,6 +142,16 @@ HUE_SCENE-29 = Custom scene 29
 HUE_SCENE-30 = Custom scene 30
 
 # Hue Motion Sensor
-ND-HMOT-NAME = Hue Motion Sensor
-ND-HUEBR-ICON = MotionSensor
-ST-HHUB-ST-NAME = Motion
+ND-HUEMOTION-NAME = Hue Motion Sensor
+ND-HUEMOTION-ICON = MotionSensor
+ST-HMOT-ST-NAME = Motion
+
+# Hue Luminance Sensor
+ND-HUELUM-NAME = Hue Luminance Sensor
+ND-HUELUM-ICON = Sensor
+ST-HLUM-ST-NAME = Luminance
+
+# Hue Temperature Sensor
+ND-HUETEMP-NAME = Hue Temperature Sensor
+ND-HUETEMP-ICON = TempSensor
+ST-HTEMP-ST-NAME = Temperature

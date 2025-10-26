@@ -11,7 +11,7 @@ import sseclient
 import udi_interface
 import huev2
 from converters import id2addr
-from node_types import HueEColorLight, HueGroup
+from node_types import HueEColorLight, HueGroup, HueMotion, HueLum, HueTemp
 
 LOGGER = udi_interface.LOGGER
 Custom = udi_interface.Custom
@@ -34,6 +34,8 @@ class Control(udi_interface.Node):
         self.rooms = {}
         self.zones = {}
         self.motion_sensor = {}
+        self.lum_sensor = {}
+        self.temp_sensor = {}
         self.scene_lookup = []
         self.ignore_second_on = False
         self.stream_thread = {}
@@ -182,6 +184,18 @@ class Control(udi_interface.Node):
                         return dev_service['rid']
         return None
 
+    def _get_all_devices(self, hub_idx):
+        self.lights[hub_idx] = self.hub[hub_idx].get_lights()
+        self.devices[hub_idx] = self.hub[hub_idx].get_devices()
+        self.groups[hub_idx] = self.hub[hub_idx].get_groups()
+        self.rooms[hub_idx] = self.hub[hub_idx].get_rooms()
+        self.zones[hub_idx] = self.hub[hub_idx].get_zones()
+        self.scenes[hub_idx] = self.hub[hub_idx].get_scenes()
+        self.motion_sensor[hub_idx] = self.hub[hub_idx].get_motion()
+        self.lum_sensor[hub_idx] = self.hub[hub_idx].get_lum()
+        self.temp_sensor[hub_idx] = self.hub[hub_idx].get_temp()
+        self.zigbee_connectivity[hub_idx] = self.hub[hub_idx].get_zigbee_connectivity()
+
     def discover(self, command=None):
         self.scene_lookup = []
         for idx in self.hub.keys():
@@ -193,15 +207,7 @@ class Control(udi_interface.Node):
             return True
         self.discovery = True
         LOGGER.info(f'Hub {hub_idx} Starting Hue discovery...')
-
-        self.lights[hub_idx] = self.hub[hub_idx].get_lights()
-        self.devices[hub_idx] = self.hub[hub_idx].get_devices()
-        self.groups[hub_idx] = self.hub[hub_idx].get_groups()
-        self.rooms[hub_idx] = self.hub[hub_idx].get_rooms()
-        self.zones[hub_idx] = self.hub[hub_idx].get_zones()
-        self.scenes[hub_idx] = self.hub[hub_idx].get_scenes()
-        self.motion_sensor[hub_idx] = self.hub[hub_idx].get_motion()
-        self.zigbee_connectivity[hub_idx] = self.hub[hub_idx].get_zigbee_connectivity()
+        self._get_all_devices(hub_idx)
 
         if not self.lights[hub_idx]:
             LOGGER.error(f'Hub {hub_idx} Discover: Failed to read Lights from the Hue Bridge')
@@ -235,6 +241,32 @@ class Control(udi_interface.Node):
                 if not self.poly.getNode(address):
                     LOGGER.info(f'Hub {hub_idx} Found Motion Sensor: {name}({address})')
                     self.poly.addNode(HueMotion(self.poly, self.address, address, name, motion['id'], motion, hub_idx, parent_dev, zb_conn))
+
+        lum_count = len(self.lum_sensor[hub_idx])
+        LOGGER.info(f'Hub {hub_idx} {lum_count} luminance sensors found. Checking status and adding to ISY if necessary.')
+        if lum_count > 0:
+            for lum in self.lum_sensor[hub_idx]:
+                address = id2addr(lum['id'])
+                parent_dev = self._find_parent_dev(hub_idx, lum['id'], 'light_level')
+                zb_conn = self._get_parent_dev_zbconn(hub_idx, parent_dev)
+                name = self._get_parent_dev_name(hub_idx, parent_dev) + ' luminance'
+
+                if not self.poly.getNode(address):
+                    LOGGER.info(f'Hub {hub_idx} Found Luminance Sensor: {name}({address})')
+                    self.poly.addNode(HueLum(self.poly, self.address, address, name, lum['id'], lum, hub_idx, parent_dev, zb_conn))
+
+        temp_count = len(self.temp_sensor[hub_idx])
+        LOGGER.info(f'Hub {hub_idx} {temp_count} temperature sensors found. Checking status and adding to ISY if necessary.')
+        if temp_count > 0:
+            for temp in self.temp_sensor[hub_idx]:
+                address = id2addr(temp['id'])
+                parent_dev = self._find_parent_dev(hub_idx, temp['id'], 'temperature')
+                zb_conn = self._get_parent_dev_zbconn(hub_idx, parent_dev)
+                name = self._get_parent_dev_name(hub_idx, parent_dev) + ' temperature'
+
+                if not self.poly.getNode(address):
+                    LOGGER.info(f'Hub {hub_idx} Found Temperature Sensor: {name}({address})')
+                    self.poly.addNode(HueTemp(self.poly, self.address, address, name, temp['id'], temp, hub_idx, parent_dev, zb_conn))
 
         LOGGER.info(f'Hub {hub_idx} {len(self.groups[hub_idx])} groups found. Checking status and adding to ISY if necessary.')
 
@@ -303,14 +335,7 @@ class Control(udi_interface.Node):
     def updateNodes(self, hub_idx):
         if self.hub[hub_idx] is None or self.discovery is True:
             return
-        self.lights[hub_idx] = self.hub[hub_idx].get_lights()
-        self.devices[hub_idx] = self.hub[hub_idx].get_devices()
-        self.groups[hub_idx] = self.hub[hub_idx].get_groups()
-        self.rooms[hub_idx] = self.hub[hub_idx].get_rooms()
-        self.zones[hub_idx] = self.hub[hub_idx].get_zones()
-        self.scenes[hub_idx] = self.hub[hub_idx].get_scenes()
-        self.motion_sensor[hub_idx] = self.hub[hub_idx].get_motion()
-        self.zigbee_connectivity[hub_idx] = self.hub[hub_idx].get_zigbee_connectivity()
+        self._get_all_devices(hub_idx)
         for node in self.poly.getNodes().values():
             node.updateInfo()
 
@@ -356,7 +381,7 @@ class Control(udi_interface.Node):
             event_data = json.loads(event.data)
             for event_item in event_data:
                 for event_chunk in event_item['data']:
-                    if event_chunk['type'] == 'light' or event_chunk['type'] == 'grouped_light' or event_chunk['type'] == 'motion':
+                    if event_chunk['type'] in ['light','grouped_light','motion','light_level','temperature']:
                         address = id2addr(event_chunk['id'])
                         if address in self.poly.getNodes():
                             self.poly.getNode(address).process_event(event_chunk)

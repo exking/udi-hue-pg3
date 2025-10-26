@@ -328,4 +328,34 @@
         </cmds>
     </nodeDef>
 
+    <!-- Hue Motion Sensor -->
+    <nodeDef id="HUELUM" nls="HLUM">
+        <editors />
+        <sts>
+            <st id="ST" editor="HLUMST" />
+        </sts>
+        <cmds>
+            <sends />
+            <accepts>
+                <cmd id="QUERY">
+                </cmd>
+            </accepts>
+        </cmds>
+    </nodeDef>
+
+    <!-- Hue Motion Sensor -->
+    <nodeDef id="HUETEMP" nls="HTEMP">
+        <editors />
+        <sts>
+            <st id="ST" editor="HTEMPST" />
+        </sts>
+        <cmds>
+            <sends />
+            <accepts>
+                <cmd id="QUERY">
+                </cmd>
+            </accepts>
+        </cmds>
+    </nodeDef>
+
 </nodeDefs>

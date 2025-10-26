@@ -75,4 +75,14 @@
         <range uom="2" subset="0,1" />
     </editor>
 
+    <!-- Luminance  -->
+    <editor id="HLUMST">
+        <range uom="0" min="0" max="100000" prec="0" />
+    </editor>
+
+    <!-- Motion detected  -->
+    <editor id="HTEMPST">
+        <range uom="4" min="-50" max="50" prec="2" />
+    </editor>
+
 </editors>

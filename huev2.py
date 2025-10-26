@@ -134,6 +134,20 @@ class HueBridge:
             return False
         return req.json()["data"]
 
+    def get_lum(self):
+        req = self.bridge_pool.request("GET", "/clip/v2/resource/light_level")
+        if req.status != 200:
+            LOGGER.error(f"Error requesting luminance sensors: {req.status}")
+            return False
+        return req.json()["data"]
+
+    def get_temp(self):
+        req = self.bridge_pool.request("GET", "/clip/v2/resource/temperature")
+        if req.status != 200:
+            LOGGER.error(f"Error requesting temperature sensors: {req.status}")
+            return False
+        return req.json()["data"]
+
     def get_grouped_motion(self):
         req = self.bridge_pool.request("GET", "/clip/v2/resource/grouped_motion")
         if req.status != 200:
