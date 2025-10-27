@@ -728,8 +728,9 @@ class HueLum(udi_interface.Node):
 
     def _updateInfo(self):
         if self.data['light']['light_level_valid']:
-            light_level = self.data['light']['light_level_report']['light_level']
-            self.setDriver('ST', light_level)
+            light_level = int(self.data['light']['light_level_report']['light_level'])
+            lux = round(10 ** ((light_level - 1)/10000), 1)
+            self.setDriver('ST', lux)
 
         for zbc in self.controller.zigbee_connectivity[self.hub_idx]:
             if zbc['id'] == self.zigbee_connectivity_id:
@@ -742,8 +743,9 @@ class HueLum(udi_interface.Node):
     def process_event(self, event):
         LOGGER.debug(f'{self.name} processing event {json.dumps(event)}')
         if 'light' in event:
-            light_level = event['light']['light_level_report']['light_level']
-            self.setDriver('ST', light_level)
+            light_level = int(event['light']['light_level_report']['light_level'])
+            lux = round(10 ** ((light_level - 1)/10000), 1)
+            self.setDriver('ST', lux)
 
     def process_connectivity(self, event):
         LOGGER.debug(f'{self.name} processing event {json.dumps(event)}')
@@ -753,7 +755,7 @@ class HueLum(udi_interface.Node):
             self.reachable = 0
 #        self.setDriver('GV6', self.reachable)
 
-    drivers = [ {'driver': 'ST', 'value': 0, 'uom': 0}
+    drivers = [ {'driver': 'ST', 'value': 0, 'uom': 36}
               ]
 
     commands = {
