@@ -783,7 +783,7 @@ class HueTemp(udi_interface.Node):
         if self.controller.lights[self.hub_idx] is None:
             return
         try:
-            for data in self.controller.motion_sensor[self.hub_idx]:
+            for data in self.controller.temp_sensor[self.hub_idx]:
                 if data['id'] == self.element_id:
                     self.data = data
                     break
