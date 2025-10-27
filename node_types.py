@@ -300,8 +300,12 @@ class HueDimmLight(HueBase):
                 else:
                     self.reportCmd('DOF')
         self.on = self.data['on']['on']
-        self.brightness = self.data['dimming']['brightness']
-        self.st = self.data['dimming']['brightness']
+        if 'dimming' in self.data:
+            self.brightness = self.data['dimming']['brightness']
+            self.st = self.data['dimming']['brightness']
+        else:
+           self.st = 100
+           self.brightness = 100
 
         self.setDriver('GV5', self.brightness)
 
