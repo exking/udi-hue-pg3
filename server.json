@@ -1,22 +1,22 @@
 {
-    "name": "Hue",
-    "docs": "https://github.com/exking/udi-hue-pg3/blob/master/README.md",
-    "type": "python3",
-    "executable": "hue.py",
-    "install": "install.sh",
-    "shortPoll": "15",
-    "longPoll": "60",
-    "logLevel": "INFO",
-    "description": "Connect Phillips Hue Personal Wireless Lighting system to the ISY994.",
-    "notice": "\"Hue Personal Wireless Lighting\" is a trademark owned by Koninklijke Philips Electronics N.V., see www.meethue.com for more information. This Node Server is neither developed by nor endorsed by the Philips organization.",
-    "credits": [
-        {
-            "title": "udi-hue-pg3: A Polyglot v2 interface to Philips Hue",
-            "author": "xKing",
-            "version": "1.0.6",
-            "date": "Dec 15, 2017",
-            "source": "https://github.com/exking/udi-hue-pg3",
-            "license": "https://raw.githubusercontent.com/exking/udi-hue-pg3/master/LICENSE"
-        }
-    ]
+  "name": "Hue",
+  "docs": "https://github.com/exking/udi-hue-pg3/blob/master/README.md",
+  "type": "python3",
+  "executable": "hue.py",
+  "install": "install.sh",
+  "shortPoll": "15",
+  "longPoll": "60",
+  "logLevel": "INFO",
+  "description": "Connect Phillips Hue Personal Wireless Lighting system to the ISY994.",
+  "notice": "\"Hue Personal Wireless Lighting\" is a trademark owned by Koninklijke Philips Electronics N.V., see www.meethue.com for more information. This Node Server is neither developed by nor endorsed by the Philips organization.",
+  "credits": [
+    {
+      "title": "udi-hue-pg3: A Polyglot v2 interface to Philips Hue",
+      "author": "xKing",
+      "version": "1.0.6",
+      "date": "Dec 15, 2017",
+      "source": "https://github.com/exking/udi-hue-pg3",
+      "license": "https://raw.githubusercontent.com/exking/udi-hue-pg3/master/LICENSE"
+    }
+  ]
 }
