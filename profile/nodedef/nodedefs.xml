@@ -358,4 +358,21 @@
         </cmds>
     </nodeDef>
 
+    <!-- Hue Button -->
+    <nodeDef id="HUEBTTN" nls="HBTN">
+        <editors />
+        <sts>
+            <st id="ST" editor="HBTNST" />
+        </sts>
+        <cmds>
+            <sends>
+                <cmd id="DON" />
+            </sends>
+            <accepts>
+                <cmd id="QUERY">
+                </cmd>
+            </accepts>
+        </cmds>
+    </nodeDef>
+
 </nodeDefs>

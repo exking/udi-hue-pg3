@@ -13,18 +13,10 @@
         {
             "title": "udi-hue-pg3: A Polyglot v2 interface to Philips Hue",
             "author": "xKing",
-            "version": "1.0.5",
+            "version": "1.0.6",
             "date": "Dec 15, 2017",
             "source": "https://github.com/exking/udi-hue-pg3",
             "license": "https://raw.githubusercontent.com/exking/udi-hue-pg3/master/LICENSE"
-        },
-	{
-            "title": "udi-poly-template-python: A Polyglot v2 Poly template",
-            "author": "James Milne (Einstein.42)",
-            "version": "2.0.0",
-            "date": "November 8, 2017",
-            "source": "https://github.com/Einstein42/udi-poly-template-python",
-            "license": "https://raw.githubusercontent.com/Einstein42/udi-poly-template-python/master/LICENSE"
         }
     ]
 }

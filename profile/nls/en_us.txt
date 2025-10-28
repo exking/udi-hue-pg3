@@ -155,3 +155,15 @@ ST-HLUM-ST-NAME = Luminance
 ND-HUETEMP-NAME = Hue Temperature Sensor
 ND-HUETEMP-ICON = TempSensor
 ST-HTEMP-ST-NAME = Temperature
+
+# Hue Button
+ND-HUEBTTN-NAME = Hue Button
+ND-HUEBTTN-ICON = Input
+ST-HBTN-ST-NAME = Button State
+
+HBTNSEL-0 = Initial Press
+HBTNSEL-1 = Repeat
+HBTNSEL-2 = Short Release
+HBTNSEL-3 = Long Release
+HBTNSEL-4 = Double Short Release
+HBTNSEL-5 = Long Press

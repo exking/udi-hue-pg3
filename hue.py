@@ -11,7 +11,7 @@ import sseclient
 import udi_interface
 import huev2
 from converters import id2addr
-from node_types import HueEColorLight, HueGroup, HueMotion, HueLum, HueTemp
+from node_types import HueEColorLight, HueGroup, HueMotion, HueLum, HueTemp, HueButton
 
 LOGGER = udi_interface.LOGGER
 Custom = udi_interface.Custom
@@ -36,6 +36,7 @@ class Control(udi_interface.Node):
         self.motion_sensor = {}
         self.lum_sensor = {}
         self.temp_sensor = {}
+        self.button = {}
         self.scene_lookup = []
         self.ignore_second_on = False
         self.stream_thread = {}
@@ -194,6 +195,7 @@ class Control(udi_interface.Node):
         self.motion_sensor[hub_idx] = self.hub[hub_idx].get_motion()
         self.lum_sensor[hub_idx] = self.hub[hub_idx].get_lum()
         self.temp_sensor[hub_idx] = self.hub[hub_idx].get_temp()
+        self.button[hub_idx] = self.hub[hub_idx].get_button()
         self.zigbee_connectivity[hub_idx] = self.hub[hub_idx].get_zigbee_connectivity()
 
     def discover(self, command=None):
@@ -267,6 +269,21 @@ class Control(udi_interface.Node):
                 if not self.poly.getNode(address):
                     LOGGER.info(f'Hub {hub_idx} Found Temperature Sensor: {name}({address})')
                     self.poly.addNode(HueTemp(self.poly, self.address, address, name, temp['id'], temp, hub_idx, parent_dev, zb_conn))
+
+        button_count = len(self.button[hub_idx])
+        LOGGER.info(f'Hub {hub_idx} {button_count} buttons sensors found. Checking status and adding to ISY if necessary.')
+        if button_count > 0:
+            button_idx = 0
+            for button in self.button[hub_idx]:
+                address = id2addr(button['id'])
+                parent_dev = self._find_parent_dev(hub_idx, button['id'], 'button')
+                zb_conn = self._get_parent_dev_zbconn(hub_idx, parent_dev)
+                name = self._get_parent_dev_name(hub_idx, parent_dev) + ' button ' + str(button_idx)
+                button_idx += 1
+
+                if not self.poly.getNode(address):
+                    LOGGER.info(f'Hub {hub_idx} Found Button: {name}({address})')
+                    self.poly.addNode(HueButton(self.poly, self.address, address, name, button['id'], button, hub_idx, parent_dev, zb_conn))
 
         LOGGER.info(f'Hub {hub_idx} {len(self.groups[hub_idx])} groups found. Checking status and adding to ISY if necessary.')
 
@@ -381,7 +398,7 @@ class Control(udi_interface.Node):
             event_data = json.loads(event.data)
             for event_item in event_data:
                 for event_chunk in event_item['data']:
-                    if event_chunk['type'] in ['light','grouped_light','motion','light_level','temperature']:
+                    if event_chunk['type'] in ['light','grouped_light','motion','light_level','temperature','button']:
                         address = id2addr(event_chunk['id'])
                         if address in self.poly.getNodes():
                             self.poly.getNode(address).process_event(event_chunk)
