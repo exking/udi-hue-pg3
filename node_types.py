@@ -524,7 +524,7 @@ class HueGroup(HueBase):
 
 #        self.alert = self.data['action']['alert']
 
-        if 'mirek' in self.data['color_temperature']:
+        if 'mirek' in self.data.get('color_temperature', {}):
             self.ct = kel2mired(self.data['color_temperature']['mirek'])
             self.setDriver('CLITEMP', self.ct)
         else:
