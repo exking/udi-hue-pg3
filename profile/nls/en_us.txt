@@ -154,7 +154,8 @@ ST-HLUM-ST-NAME = Luminance
 # Hue Temperature Sensor
 ND-HUETEMP-NAME = Hue Temperature Sensor
 ND-HUETEMP-ICON = TempSensor
-ST-HTEMP-ST-NAME = Temperature
+ST-HTEMP-ST-NAME = Temperature C
+ST-HTEMP-CLITEMP-NAME = Temperature F
 
 # Hue Button
 ND-HUEBTTN-NAME = Hue Button

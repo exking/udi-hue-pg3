@@ -271,7 +271,7 @@ class Control(udi_interface.Node):
                     self.poly.addNode(HueTemp(self.poly, self.address, address, name, temp['id'], temp, hub_idx, parent_dev, zb_conn))
 
         button_count = len(self.button[hub_idx])
-        LOGGER.info(f'Hub {hub_idx} {button_count} buttons sensors found. Checking status and adding to ISY if necessary.')
+        LOGGER.info(f'Hub {hub_idx} {button_count} buttons found. Checking status and adding to ISY if necessary.')
         if button_count > 0:
             button_idx = 0
             for button in self.button[hub_idx]:

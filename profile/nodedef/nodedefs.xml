@@ -343,11 +343,12 @@
         </cmds>
     </nodeDef>
 
-    <!-- Hue Motion Sensor -->
+    <!-- Hue Temperature Sensor -->
     <nodeDef id="HUETEMP" nls="HTEMP">
         <editors />
         <sts>
             <st id="ST" editor="HTEMPST" />
+            <st id="CLITEMP" editor="HTEMPF" />
         </sts>
         <cmds>
             <sends />

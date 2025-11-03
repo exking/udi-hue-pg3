@@ -784,6 +784,10 @@ class HueTemp(udi_interface.Node):
     def query(self):
         pass
 
+    @staticmethod
+    def celsius_to_fahrenheit(celsius):
+        return (celsius * 9/5) + 32
+
     def updateInfo(self):
         self.data = None
         zbc = None
@@ -807,7 +811,9 @@ class HueTemp(udi_interface.Node):
     def _updateInfo(self):
         if self.data['temperature']['temperature_valid']:
             temp_c = self.data['temperature']['temperature_report']['temperature']
+            temp_f = round(self.celsius_to_fahrenheit(temp_c), 1)
             self.setDriver('ST', temp_c)
+            self.setDriver('CLITEMP', temp_f)
 
         for zbc in self.controller.zigbee_connectivity[self.hub_idx]:
             if zbc['id'] == self.zigbee_connectivity_id:
@@ -821,7 +827,9 @@ class HueTemp(udi_interface.Node):
         LOGGER.debug(f'{self.name} processing event {json.dumps(event)}')
         if 'temperature' in event:
             temp_c =  event['temperature']['temperature_report']['temperature']
+            temp_f = round(self.celsius_to_fahrenheit(temp_c), 1)
             self.setDriver('ST', temp_c)
+            self.setDriver('CLITEMP', temp_f)
 
     def process_connectivity(self, event):
         LOGGER.debug(f'{self.name} processing event {json.dumps(event)}')
@@ -831,7 +839,8 @@ class HueTemp(udi_interface.Node):
             self.reachable = 0
 #        self.setDriver('GV6', self.reachable)
 
-    drivers = [ {'driver': 'ST', 'value': 0, 'uom': 4}
+    drivers = [ {'driver': 'ST', 'value': 0, 'uom': 4},
+                {'driver': 'CLITEMP', 'value': 0, 'uom': 17}
               ]
 
     commands = {
@@ -890,7 +899,7 @@ class HueButton(udi_interface.Node):
         return event_id
 
     def _updateInfo(self):
-        if self.data['button']['button_report']:
+        if 'button_report' in self.data['button']:
             event_id = self._button_event(self.data['button']['button_report']['event'])
             self.setDriver('ST', event_id)
 

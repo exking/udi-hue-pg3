@@ -80,9 +80,14 @@
         <range uom="36" min="0" max="1000" prec="1" />
     </editor>
 
-    <!-- Motion detected  -->
+    <!-- Temperature C  -->
     <editor id="HTEMPST">
         <range uom="4" min="-50" max="50" prec="2" />
+    </editor>
+
+    <!-- Temperature F  -->
+    <editor id="HTEMPF">
+        <range uom="17" min="-58" max="122" prec="1" />
     </editor>
 
     <!-- Button Events -->
