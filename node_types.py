@@ -646,7 +646,17 @@ class HueMotion(udi_interface.Node):
         self._updateInfo()
 
     def _updateInfo(self):
-        if self.data['motion']['motion_report']['motion']:
+        motion = self.data.get('motion') or {}
+        report = motion.get('motion_report')
+        if report is not None:
+            detected = report.get('motion')
+        elif motion.get('motion_valid'):
+            detected = motion.get('motion')
+        else:
+            detected = None
+        if detected is None:
+            LOGGER.info(f'{self.name}: bridge has no motion report yet, leaving ST unchanged')
+        elif detected:
             self.setDriver('ST', 1)
         else:
             self.setDriver('ST', 0)
@@ -662,7 +672,10 @@ class HueMotion(udi_interface.Node):
     def process_event(self, event):
         LOGGER.debug(f'{self.name} processing event {json.dumps(event)}')
         if 'motion' in event:
-            if event['motion']['motion_report']['motion']:
+            report = (event['motion'] or {}).get('motion_report')
+            if report is None:
+                LOGGER.debug(f'{self.name}: motion event without motion_report, ignoring')
+            elif report.get('motion'):
                 self.reportCmd('DON')
                 self.setDriver('ST', 1)
             else:
