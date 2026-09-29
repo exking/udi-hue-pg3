@@ -5,6 +5,7 @@ import sys
 import logging
 import json
 import time
+import traceback
 from threading import Thread
 import urllib3
 import sseclient
@@ -208,6 +209,15 @@ class Control(udi_interface.Node):
         if self.hub[hub_idx] is None or self.discovery is True:
             return True
         self.discovery = True
+        try:
+            return self._discover_body(hub_idx)
+        except Exception:
+            LOGGER.error(f'Hub {hub_idx} discovery failed: {traceback.format_exc()}')
+            return False
+        finally:
+            self.discovery = False
+
+    def _discover_body(self, hub_idx):
         LOGGER.info(f'Hub {hub_idx} Starting Hue discovery...')
         self._get_all_devices(hub_idx)
 
