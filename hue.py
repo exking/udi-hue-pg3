@@ -5,6 +5,7 @@ import sys
 import logging
 import json
 import time
+import traceback
 from threading import Thread
 import urllib3
 import sseclient
@@ -208,6 +209,15 @@ class Control(udi_interface.Node):
         if self.hub[hub_idx] is None or self.discovery is True:
             return True
         self.discovery = True
+        try:
+            return self._discover_body(hub_idx)
+        except Exception:
+            LOGGER.error(f'Hub {hub_idx} discovery failed: {traceback.format_exc()}')
+            return False
+        finally:
+            self.discovery = False
+
+    def _discover_body(self, hub_idx):
         LOGGER.info(f'Hub {hub_idx} Starting Hue discovery...')
         self._get_all_devices(hub_idx)
 
@@ -238,7 +248,7 @@ class Control(udi_interface.Node):
                 address = id2addr(motion['id'])
                 parent_dev = self._find_parent_dev(hub_idx, motion['id'], 'motion')
                 zb_conn = self._get_parent_dev_zbconn(hub_idx, parent_dev)
-                name = self._get_parent_dev_name(hub_idx, parent_dev) + ' motion'
+                name = (self._get_parent_dev_name(hub_idx, parent_dev) or 'Hue sensor') + ' motion'
 
                 if not self.poly.getNode(address):
                     LOGGER.info(f'Hub {hub_idx} Found Motion Sensor: {name}({address})')
@@ -251,7 +261,7 @@ class Control(udi_interface.Node):
                 address = id2addr(lum['id'])
                 parent_dev = self._find_parent_dev(hub_idx, lum['id'], 'light_level')
                 zb_conn = self._get_parent_dev_zbconn(hub_idx, parent_dev)
-                name = self._get_parent_dev_name(hub_idx, parent_dev) + ' luminance'
+                name = (self._get_parent_dev_name(hub_idx, parent_dev) or 'Hue sensor') + ' luminance'
 
                 if not self.poly.getNode(address):
                     LOGGER.info(f'Hub {hub_idx} Found Luminance Sensor: {name}({address})')
@@ -264,7 +274,7 @@ class Control(udi_interface.Node):
                 address = id2addr(temp['id'])
                 parent_dev = self._find_parent_dev(hub_idx, temp['id'], 'temperature')
                 zb_conn = self._get_parent_dev_zbconn(hub_idx, parent_dev)
-                name = self._get_parent_dev_name(hub_idx, parent_dev) + ' temperature'
+                name = (self._get_parent_dev_name(hub_idx, parent_dev) or 'Hue sensor') + ' temperature'
 
                 if not self.poly.getNode(address):
                     LOGGER.info(f'Hub {hub_idx} Found Temperature Sensor: {name}({address})')
@@ -278,7 +288,7 @@ class Control(udi_interface.Node):
                 address = id2addr(button['id'])
                 parent_dev = self._find_parent_dev(hub_idx, button['id'], 'button')
                 zb_conn = self._get_parent_dev_zbconn(hub_idx, parent_dev)
-                name = self._get_parent_dev_name(hub_idx, parent_dev) + ' button ' + str(button_idx)
+                name = (self._get_parent_dev_name(hub_idx, parent_dev) or 'Hue sensor') + ' button ' + str(button_idx)
                 button_idx += 1
 
                 if not self.poly.getNode(address):
